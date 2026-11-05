@@ -1,8 +1,11 @@
-# Database — step 1: users and stalls
+# Database — shopkeeper foundation
 
-Shopkeeper registration foundation. Postgres holds people and their stall. This step covers **`users`** and **`stalls` only** — no menu items, bargains, or payments yet.
+Postgres holds people, their stall shell, and the menu. Bargains and payments come later.
 
-Migration: [`db/migrations/0001_users_stalls.sql`](../db/migrations/0001_users_stalls.sql). Apply with `npm run db:migrate` (needs `DATABASE_URL` in `.env.local`).
+Migrations (apply with `npm run db:migrate`):
+
+- [`0001_users_stalls.sql`](../db/migrations/0001_users_stalls.sql) — `users`, `stalls`
+- [`0002_stall_items.sql`](../db/migrations/0002_stall_items.sql) — menu rows (`price` ask, `lowest` floor)
 
 ## Purpose
 
@@ -18,13 +21,14 @@ A shopkeeper signs in, starts a stall a piece at a time (details → pin → ope
 | Incomplete stalls     | Allowed; row can exist with empty name / no UPI / no pin                                                                          |
 | Discoverable          | Only when `is_open` is true                                                                                                       |
 | Agent address         | Nullable `agent_id` from UPI (`agent_` + first 10 hex of sha256(UPI)), unique when set — payout identity without building A2A yet |
-| Menu / money          | Not in this step                                                                                                                  |
+| Menu prices           | Whole rupees: `price` = starting ask, `lowest` = absolute floor (never told to buyers)                                            |
 
 ## Entity model
 
 ```mermaid
 erDiagram
   users ||--o| stalls : owns
+  stalls ||--o{ stall_items : sells
   users {
     text id PK
     text email
@@ -45,9 +49,18 @@ erDiagram
     timestamptz created_at
     timestamptz updated_at
   }
+  stall_items {
+    int id PK
+    text stall_id FK
+    text name
+    text words
+    int price
+    int lowest
+    boolean active
+  }
 ```
 
-One user owns at most one stall. A stall always points at its owner.
+One user owns at most one stall. A stall has many menu items.
 
 ## Tables
 
@@ -110,8 +123,9 @@ App rule (enforce in writes; document here so UI and API stay aligned):
 1. `name <> ''`
 2. `upi_id IS NOT NULL`
 3. `lat IS NOT NULL` AND `lng IS NOT NULL`
+4. At least one **active** `stall_items` row
 
-Clearing name or UPI must force `is_open = false`. Pin alone is not enough to open.
+Clearing name or UPI, or removing the last menu item, must force `is_open = false`.
 
 ## Registration lifecycle
 
@@ -127,6 +141,8 @@ sequenceDiagram
   App->>DB: Insert stalls owner_id is_open false
   Shopkeeper->>App: Stall details name UPI lang style
   App->>DB: Update stalls set agent_id from UPI
+  Shopkeeper->>App: Menu items or scan photo
+  App->>DB: Insert stall_items
   Shopkeeper->>App: Pin location
   App->>DB: Update lat lng
   Shopkeeper->>App: Toggle open
@@ -138,21 +154,23 @@ sequenceDiagram
 | 1    | Sign in       | Upsert `users`                                                           |
 | 2    | Start stall   | Insert `stalls` for `owner_id`, `is_open = false`, empty `name`          |
 | 3    | Stall details | Update `name`, `upi_id`, `upi_qr`, `lang`, `style`; recompute `agent_id` |
-| 4    | Pin           | Set `lat`, `lng`                                                         |
-| 5    | Open          | Set `is_open = true` only if open gate passes                            |
+| 4    | Menu          | Insert/update `stall_items` (or Gemini scan from a photo)                |
+| 5    | Pin           | Set `lat`, `lng`                                                         |
+| 6    | Open          | Set `is_open = true` only if open gate passes                            |
 
-Menu items are **step 2** (a separate table). Do not put item name/price columns on `stalls`.
+### `stall_items`
 
-## Not in step 1
+| Column     | Type          | Notes                                                 |
+| ---------- | ------------- | ----------------------------------------------------- |
+| `id`       | `serial` PK   |                                                       |
+| `stall_id` | FK → `stalls` |                                                       |
+| `name`     | `text`        | What the buyer sees                                   |
+| `words`    | `text`        | Alias words for matching (space-separated)            |
+| `price`    | `integer`     | Starting / asking price (whole ₹)                     |
+| `lowest`   | `integer`     | Absolute floor; `1…price`; never sent to buyers       |
+| `active`   | `boolean`     | Soft-delete; past bargains can still point at the row |
 
-| Later                               | Why wait                                          |
-| ----------------------------------- | ------------------------------------------------- |
-| `stall_items` / menu                | What the stall sells, asking price, private floor |
-| Bargains, offers, turns             | Negotiation                                       |
-| Payments, deal locks, LP            | Money movement                                    |
-| A2A task / hit tables               | Protocol persistence                              |
-| Redis / KV                          | Short-lived cache and rate limits                 |
-| Push subscriptions, Hedera accounts | Device alerts and crypto payout identity          |
+Menu scan: shopkeeper uploads a photo → Gemini lists items + ask prices → rows inserted with `lowest ≈ 80% of price` for editing.
 
 ## Applying the migration
 
