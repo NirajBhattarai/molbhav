@@ -92,13 +92,13 @@ export function Sheet({
         tabIndex={-1}
         className="relative flex max-h-[92dvh] w-full max-w-md animate-[rise_260ms_var(--ease-out)] flex-col overflow-hidden rounded-t-3xl bg-card text-card-foreground shadow-2xl outline-none sm:rounded-3xl"
       >
-        <span aria-hidden className="mx-auto mt-2.5 h-1 w-10 shrink-0 rounded-full bg-border sm:hidden" />
+        <span
+          aria-hidden
+          className="mx-auto mt-2.5 h-1 w-10 shrink-0 rounded-full bg-border sm:hidden"
+        />
         <header className="flex shrink-0 items-start gap-3 px-5 pt-3 pb-4 sm:pt-5">
           <div className="min-w-0 flex-1">
-            <h2
-              id={titleId}
-              className="font-display text-xl font-bold tracking-tight text-balance"
-            >
+            <h2 id={titleId} className="font-display text-xl font-bold tracking-tight text-balance">
               {title}
             </h2>
             {description && (

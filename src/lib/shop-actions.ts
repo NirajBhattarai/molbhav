@@ -5,6 +5,7 @@ import { isLang, type Lang } from "@/lib/languages";
 import { aliasesFor, geminiConfigured, geminiJSON } from "@/lib/server/gemini";
 import { ensureUser, me, type Style } from "@/lib/server/shop";
 import { query, transaction } from "@/lib/server/db";
+import { menuKey } from "@/lib/menu";
 import { parseUpi } from "@/lib/upi";
 
 const newStallId = () => `u-${crypto.randomUUID().slice(0, 8)}`;
@@ -118,7 +119,7 @@ export async function saveItem(item: {
   name: string;
   price: number;
   lowest: number;
-}): Promise<{ error: string } | null> {
+}): Promise<{ error: string; duplicateOf?: number } | null> {
   const name = clean(item.name, 80);
   const price = Math.round(Number(item.price));
   const lowest = Math.round(Number(item.lowest));
@@ -128,6 +129,11 @@ export async function saveItem(item: {
   if (lowest > price) return { error: "The lowest price can’t be above your starting price." };
 
   const stall = await ownStall();
+  // One stall, one entry per dish: refuse a second "Masala chai" (any case or punctuation).
+  const key = menuKey(name);
+  const twin = (await activeItems(stall)).find((i) => i.id !== item.id && menuKey(i.name) === key);
+  if (twin) return { error: `${twin.name} is already on your menu.`, duplicateOf: twin.id };
+
   const words = (await aliasesFor(name)).join(" ");
   if (item.id)
     await query(
@@ -251,11 +257,16 @@ export async function scanMenu(
   }
 }
 
-/** Persist reviewed scan rows after the shopkeeper sets ask / floor. */
+/**
+ * Persist reviewed scan rows after the shopkeeper sets ask / floor.
+ * A row whose name is already on the menu updates that item instead of adding a second one;
+ * repeats within the same scan collapse to the last one.
+ */
 export async function saveScannedItems(
   items: { name: string; words: string; price: number; lowest: number }[],
-): Promise<{ added: number } | { error: string }> {
+): Promise<{ added: number; updated: number } | { error: string }> {
   if (!items.length) return { error: "No items to save." };
+  if (items.length > 60) return { error: "That’s too many items at once. Save up to 60." };
   const cleaned = items
     .map((it) => ({
       name: clean(it.name, 80),
@@ -274,12 +285,38 @@ export async function saveScannedItems(
   if (!cleaned.length) return { error: "Check each item’s name, ask, and floor." };
 
   const stall = await ownStall();
+  const existing = new Map((await activeItems(stall)).map((i) => [menuKey(i.name), i.id]));
+  const rows = new Map<string, (typeof cleaned)[number] & { target: number | null }>();
+  for (const it of cleaned) {
+    const key = menuKey(it.name);
+    rows.set(key, { ...it, target: existing.get(key) ?? null });
+  }
+  const list = [...rows.values()];
+
   await transaction(
-    cleaned.map((it) => ({
-      text: `INSERT INTO stall_items (stall_id, name, words, price, lowest) VALUES ($1, $2, $3, $4, $5)`,
-      params: [stall, it.name, it.words, it.price, it.lowest],
-    })),
+    list.map((it) =>
+      it.target
+        ? {
+            text: `UPDATE stall_items SET name = $3, price = $5, lowest = $6,
+                     words = CASE WHEN $4::text <> '' THEN $4::text ELSE words END
+                   WHERE id = $2 AND stall_id = $1 AND active`,
+            params: [stall, it.target, it.name, it.words, it.price, it.lowest],
+          }
+        : {
+            text: `INSERT INTO stall_items (stall_id, name, words, price, lowest) VALUES ($1, $2, $3, $4, $5)`,
+            params: [stall, it.name, it.words, it.price, it.lowest],
+          },
+    ),
   );
   refresh();
-  return { added: cleaned.length };
+  const updated = list.filter((it) => it.target).length;
+  return { added: list.length - updated, updated };
+}
+
+/** The stall's live menu (id + name), for duplicate checks. */
+async function activeItems(stall: string) {
+  return query<{ id: number; name: string }>(
+    "SELECT id, name FROM stall_items WHERE stall_id = $1 AND active",
+    [stall],
+  );
 }
