@@ -38,22 +38,22 @@ Industry consensus (design blogs, not controlled studies):
 
 ## Options rejected
 
-| Option | Why it failed |
-| ------ | ------------- |
-| Terracotta and cream (recipe / cooking palette) | Warm and appetising, but too close to Swiggy / Zomato; orange on a Pay button reads as a warning |
-| Dark slate with gold and purple (generic fintech) | Purple sits next to PhonePe; dark-default feels like a generic AI app |
-| Peacock teal | Indian and distinctive, but a green-blue primary would blur with emerald used for "paid" |
+| Option                                            | Why it failed                                                                                    |
+| ------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| Terracotta and cream (recipe / cooking palette)   | Warm and appetising, but too close to Swiggy / Zomato; orange on a Pay button reads as a warning |
+| Dark slate with gold and purple (generic fintech) | Purple sits next to PhonePe; dark-default feels like a generic AI app                            |
+| Peacock teal                                      | Indian and distinctive, but a green-blue primary would blur with emerald used for "paid"         |
 
 ## Decision
 
-| Role | Hue | Why |
-| ---- | --- | --- |
-| Primary / actions | Indigo `#2B3A8F` | Trust + Indian dye heritage; distinct from Paytm / Razorpay sky blues |
-| Highlights / offers | Marigold `#F5A524` | Bazaar signal; never used on money buttons |
-| Money moved | Emerald `#047857` | Paid, deal done, savings — only after money moves |
-| Errors | Deep red `#B42318` | Errors and irreversible actions only |
-| Page surface | Warm paper `#FBF8F1` | Soft market-stall paper, not clinical white |
-| Brand panel | Deep indigo `#222D78` | Hero / splash surface; white text at ~11:1 |
+| Role                | Hue                   | Why                                                                   |
+| ------------------- | --------------------- | --------------------------------------------------------------------- |
+| Primary / actions   | Indigo `#2B3A8F`      | Trust + Indian dye heritage; distinct from Paytm / Razorpay sky blues |
+| Highlights / offers | Marigold `#F5A524`    | Bazaar signal; never used on money buttons                            |
+| Money moved         | Emerald `#047857`     | Paid, deal done, savings — only after money moves                     |
+| Errors              | Deep red `#B42318`    | Errors and irreversible actions only                                  |
+| Page surface        | Warm paper `#FBF8F1`  | Soft market-stall paper, not clinical white                           |
+| Brand panel         | Deep indigo `#222D78` | Hero / splash surface; white text at ~11:1                            |
 
 Dark mode uses lighter tints of the same hues so meaning stays stable across themes.
 
@@ -63,15 +63,15 @@ All text pairs target [WCAG 2.2](https://www.w3.org/TR/WCAG22/#contrast-minimum)
 
 Verified pairs (light / dark):
 
-| Pair | Light | Dark |
-| ---- | ----- | ---- |
-| Body text on background | 16.68 | 16.18 |
-| Text on primary | 9.98 | 7.21 |
-| Primary as link text | 9.41 | 7.21 |
-| Text on secondary | 8.67 | 10.95 |
-| Text on success | 5.48 | 9.51 |
-| Muted text on background | 6.46 | 8.30 |
-| Input border on background | 3.75 | 3.96 |
+| Pair                       | Light | Dark  |
+| -------------------------- | ----- | ----- |
+| Body text on background    | 16.68 | 16.18 |
+| Text on primary            | 9.98  | 7.21  |
+| Primary as link text       | 9.41  | 7.21  |
+| Text on secondary          | 8.67  | 10.95 |
+| Text on success            | 5.48  | 9.51  |
+| Muted text on background   | 6.46  | 8.30  |
+| Input border on background | 3.75  | 3.96  |
 
 ## Usage rules that fell out of the research
 

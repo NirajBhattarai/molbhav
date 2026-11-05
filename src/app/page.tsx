@@ -38,7 +38,8 @@ export default function Home() {
         </div>
 
         <p className="text-center text-sm text-muted-foreground">
-          See <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-xs">docs/colors.md</code>{" "}
+          See{" "}
+          <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-xs">docs/colors.md</code>{" "}
           and{" "}
           <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-xs">
             docs/research/color-palette.md
