@@ -20,6 +20,7 @@
 - Colour system: [docs/colors.md](docs/colors.md)
 - Palette research: [docs/research/color-palette.md](docs/research/color-palette.md)
 - Brand / logo: [docs/brand.md](docs/brand.md)
+- Database (step 1 — users + stalls): [docs/database.md](docs/database.md)
 - Tokens: `src/app/globals.css` (indigo actions, marigold highlights, emerald for money moved)
 
 ## Tech stack
@@ -32,16 +33,19 @@
 
 ```bash
 npm install
+cp .env.example .env.local   # DATABASE_URL, SESSION_SECRET, Magic keys
+npm run db:migrate
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) in your browser. The main page is `src/app/page.tsx`.
+Open [http://localhost:3000](http://localhost:3000). Shopkeepers: sign in → **I run a stall** → `/shop`.
 
 ## Scripts
 
-| Command         | Description               |
-| --------------- | ------------------------- |
-| `npm run dev`   | Start the dev server      |
-| `npm run build` | Create a production build |
-| `npm run start` | Run the production build  |
-| `npm run lint`  | Run ESLint                |
+| Command              | Description               |
+| -------------------- | ------------------------- |
+| `npm run dev`        | Start the dev server      |
+| `npm run build`      | Create a production build |
+| `npm run start`      | Run the production build  |
+| `npm run lint`       | Run ESLint                |
+| `npm run db:migrate` | Apply Postgres migrations |
