@@ -2,22 +2,65 @@
 
 import type { Magic as MagicType } from "magic-sdk";
 
+export type HederaNetwork = "testnet" | "mainnet";
+
+/** Magic with its Hedera extension: the wallet signs Hedera transactions in the browser. */
+export type MolbhavMagic = MagicType & {
+  hedera: {
+    getPublicKey: () => Promise<{ publicKeyDer?: string } | string | null>;
+    sign: (message: Uint8Array) => Promise<unknown>;
+  };
+};
+
 const key = (process.env.NEXT_PUBLIC_MAGIC_PUBLISHABLE_KEY ?? "").trim();
 
 export const magicConfigured = () => Boolean(key);
 
-let magic: Promise<MagicType> | null = null;
+export const hederaNetwork = (): HederaNetwork =>
+  (process.env.NEXT_PUBLIC_HEDERA_NETWORK ?? "testnet").trim().toLowerCase() === "mainnet"
+    ? "mainnet"
+    : "testnet";
 
-/** One Magic per page, loaded only when someone signs in or out. */
-export function getMagic(): Promise<MagicType> {
+/** "0x12ab…9f3c" */
+export const shortAddress = (a: string) => (a.length > 12 ? `${a.slice(0, 6)}…${a.slice(-4)}` : a);
+
+/** HashScan page for a Hedera account id (`0.0.x`) or EVM alias (`0x…`). */
+export function hashscanAccountUrl(address: string, network: HederaNetwork = hederaNetwork()) {
+  const net = network === "mainnet" ? "mainnet" : "testnet";
+  return `https://hashscan.io/${net}/account/${encodeURIComponent(address)}`;
+}
+
+let magic: Promise<MolbhavMagic> | null = null;
+
+/** One Magic per page, loaded only when someone signs in, out, or reads their Hedera wallet. */
+export function getMagic(): Promise<MolbhavMagic> {
   magic ??= (async () => {
-    const { Magic } = await import("magic-sdk");
-    return new Magic(key);
+    const [{ Magic }, { HederaExtension }] = await Promise.all([
+      import("magic-sdk"),
+      import("@magic-ext/hedera"),
+    ]);
+    return new Magic(key, {
+      extensions: [new HederaExtension({ network: hederaNetwork() })],
+    }) as unknown as MolbhavMagic;
   })().catch((err) => {
     magic = null;
     throw err;
   });
   return magic;
+}
+
+/**
+ * Hedera wallet address (EVM alias, 0x…) from Magic, once the user is signed in there.
+ * Falls back to ethereum if Hedera isn't on the wallet yet.
+ */
+export async function hederaWalletAddress(): Promise<string | null> {
+  if (!key) return null;
+  const m = await getMagic().catch(() => null);
+  if (!m || !(await m.user.isLoggedIn().catch(() => false))) return null;
+  const info = await m.user.getInfo().catch(() => null);
+  const wallets = info?.wallets as
+    { hedera?: { publicAddress?: string }; ethereum?: { publicAddress?: string } } | undefined;
+  return wallets?.hedera?.publicAddress ?? wallets?.ethereum?.publicAddress ?? null;
 }
 
 export type OtpEvent =

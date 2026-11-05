@@ -3,8 +3,16 @@ import { ShopScreen } from "@/components/app/shop-screen";
 import { me, myShop } from "@/lib/server/shop";
 
 async function ShopContent() {
-  const shop = await myShop(await me());
-  return <ShopScreen stall={shop.stall} items={shop.items} canReadMenu={shop.canReadMenu} />;
+  const user = await me();
+  const shop = await myShop(user);
+  return (
+    <ShopScreen
+      stall={shop.stall}
+      items={shop.items}
+      canReadMenu={shop.canReadMenu}
+      email={user.email}
+    />
+  );
 }
 
 export default function ShopPage() {

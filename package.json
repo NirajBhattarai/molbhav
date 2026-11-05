@@ -12,6 +12,7 @@
     "db:migrate": "node scripts/migrate.mjs"
   },
   "dependencies": {
+    "@magic-ext/hedera": "^2.11.0",
     "@magic-sdk/admin": "^2.8.4",
     "@neondatabase/serverless": "^1.2.0",
     "jsqr": "^1.4.0",

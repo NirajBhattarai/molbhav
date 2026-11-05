@@ -1,13 +1,24 @@
 "use client";
 
 import { useOptimistic, useRef, useState, useTransition, type FormEvent } from "react";
-import { Camera, Check, MapPin, Pencil, Plus, Store, Trash2, UtensilsCrossed } from "lucide-react";
+import Link from "next/link";
+import {
+  Camera,
+  Check,
+  MapPin,
+  Pencil,
+  Plus,
+  Sparkles,
+  Store,
+  Trash2,
+  UtensilsCrossed,
+} from "lucide-react";
+import { AgentCardAddress, stallAgentCardPath } from "@/components/app/agent-address";
 import { HeroCard, LiveToggle } from "@/components/app/hero";
 import { QrScanner } from "@/components/app/qr-scanner";
 import { outlineButton, primaryButton } from "@/components/ui/styles";
 import { LANG, LANGS, type Lang } from "@/lib/languages";
 import { shrinkPhoto } from "@/lib/photo";
-import { signOut } from "@/lib/role";
 import type { ShopItem, ShopStall, Style } from "@/lib/server/shop";
 import {
   pinLocation,
@@ -38,10 +49,12 @@ export function ShopScreen({
   stall,
   items,
   canReadMenu,
+  email,
 }: {
   stall: ShopStall | null;
   items: ShopItem[];
   canReadMenu: boolean;
+  email: string;
 }) {
   const [editingStall, setEditingStall] = useState(false);
   const [editingItem, setEditingItem] = useState<ShopItem | null | "new">(null);
@@ -108,13 +121,13 @@ export function ShopScreen({
           <p className="text-sm font-medium text-muted-foreground">For shopkeepers</p>
           <h1 className="font-display text-3xl font-bold tracking-tight">Your stall</h1>
         </div>
-        <button
-          type="button"
-          onClick={() => void signOut()}
-          className="text-sm font-medium text-muted-foreground hover:text-foreground"
+        <Link
+          href="/profile"
+          title={email}
+          className="max-w-[11rem] truncate text-sm font-medium text-muted-foreground hover:text-foreground"
         >
-          Sign out
-        </button>
+          {email}
+        </Link>
       </header>
 
       <HeroCard label="Stall">
@@ -306,6 +319,8 @@ export function ShopScreen({
         )}
       </section>
 
+      {stall && ready && <AgentCard style={stall.style} open={open} agentId={stall.agentId} />}
+
       {editingStall && <StallDetailsForm stall={stall} onClose={() => setEditingStall(false)} />}
       {editingItem !== null && (
         <ItemForm
@@ -324,6 +339,48 @@ export function ShopScreen({
         />
       )}
     </main>
+  );
+}
+
+function AgentCard({
+  style,
+  open,
+  agentId,
+}: {
+  style: ShopStall["style"];
+  open: boolean;
+  agentId: string | null;
+}) {
+  return (
+    <section
+      aria-label="Your AI agent"
+      className="flex items-start gap-3 rounded-2xl border border-border bg-card p-4 text-card-foreground"
+    >
+      <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+        <Sparkles className="size-5" aria-hidden />
+      </span>
+      <div className="grid min-w-0 flex-1 gap-0.5">
+        <div className="flex flex-wrap items-center gap-2">
+          <p className="font-semibold">Your AI agent</p>
+          <span
+            className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
+              open ? "bg-success/15 text-success" : "bg-muted text-muted-foreground"
+            }`}
+          >
+            {open ? "Live" : "Off"}
+          </span>
+        </div>
+        <p className="text-sm text-pretty text-muted-foreground">
+          {open
+            ? style === "firm"
+              ? "Bargaining with buyers now, firmly, in their language."
+              : "Bargaining with buyers now, in a friendly way, in their language."
+            : "Open your stall and it starts bargaining with buyers."}{" "}
+          It never goes below your lowest price.
+        </p>
+        {open && agentId && <AgentCardAddress path={stallAgentCardPath(agentId)} />}
+      </div>
+    </section>
   );
 }
 
