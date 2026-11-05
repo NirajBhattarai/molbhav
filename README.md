@@ -15,6 +15,12 @@
                               Deal  or  No deal
 ```
 
+## Design
+
+- Colour system: [docs/colors.md](docs/colors.md)
+- Palette research: [docs/research/color-palette.md](docs/research/color-palette.md)
+- Tokens: `src/app/globals.css` (indigo actions, marigold highlights, emerald for money moved)
+
 ## Tech stack
 
 - [Next.js](https://nextjs.org) (App Router) + TypeScript
