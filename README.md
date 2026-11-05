@@ -19,6 +19,7 @@
 
 - Colour system: [docs/colors.md](docs/colors.md)
 - Palette research: [docs/research/color-palette.md](docs/research/color-palette.md)
+- Brand / logo: [docs/brand.md](docs/brand.md)
 - Tokens: `src/app/globals.css` (indigo actions, marigold highlights, emerald for money moved)
 
 ## Tech stack
