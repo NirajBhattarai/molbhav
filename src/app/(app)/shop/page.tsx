@@ -4,7 +4,7 @@ import { me, myShop } from "@/lib/server/shop";
 
 async function ShopContent() {
   const shop = await myShop(await me());
-  return <ShopScreen stall={shop.stall} />;
+  return <ShopScreen stall={shop.stall} items={shop.items} canReadMenu={shop.canReadMenu} />;
 }
 
 export default function ShopPage() {
