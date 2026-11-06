@@ -35,6 +35,8 @@
   --hero: #222d78;
   --hero-foreground: #ffffff;
   --hero-success: #6ee7b7;
+  /* Marigold wash at the top of a screen, like an awning. Softer in dark so it doesn't go brown. */
+  --awning: color-mix(in srgb, var(--secondary) 28%, transparent);
   /* Charts: indigo, marigold, emerald, then teal and terracotta from the same bazaar range. */
   --chart-1: #2b3a8f;
   --chart-2: #f5a524;
@@ -78,6 +80,7 @@
     --hero: #181e52;
     --hero-foreground: #ffffff;
     --hero-success: #6ee7b7;
+    --awning: color-mix(in srgb, var(--secondary) 9%, transparent);
     --chart-1: #8e9bff;
     --chart-2: #fbbf24;
     --chart-3: #34d399;
@@ -119,6 +122,7 @@
   --hero: #181e52;
   --hero-foreground: #ffffff;
   --hero-success: #6ee7b7;
+  --awning: color-mix(in srgb, var(--secondary) 9%, transparent);
   --chart-1: #8e9bff;
   --chart-2: #fbbf24;
   --chart-3: #34d399;
