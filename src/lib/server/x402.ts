@@ -1,11 +1,12 @@
 import "server-only";
 import { HTTPFacilitatorClient } from "@x402/core/http";
 import type { PaymentPayload, PaymentRequired } from "@x402/core/types";
-import { ensName, ownerAddress } from "@/lib/ens";
+import { ensName } from "@/lib/ens";
 import { appBase } from "@/lib/server/a2a/client";
 import { wroteChat } from "@/lib/server/chat-cache";
 import { query } from "@/lib/server/db";
 import { hederaAddressFromEns } from "@/lib/server/ens";
+import { magicHederaAccountOf } from "@/lib/server/hedera-wallet";
 import { redis, redisConfigured } from "@/lib/server/redis";
 import {
   HEDERA_MAINNET,
@@ -108,20 +109,26 @@ async function dealOf(bargainId: string, stallId: string, buyerId: string): Prom
 }
 
 /**
- * Where this stall is paid on Hedera: the Hedera address on its ENS name when it has one (so the
- * buyer pays whoever the name says), else the owner's wallet. Null when neither is a Hedera account.
+ * Where this stall is paid on Hedera: its owner's Magic Hedera account, the one their wallet can
+ * spend from and their profile shows. Only if Magic can't say, the Hedera address on the stall's
+ * live ENS name (which records that same account). Never the owner's `did:ethr` EVM address: HBAR
+ * sent there lands in an account Magic's Hedera key can't spend. Null when there is no account.
  */
 export async function stallPayTo(
   deal: Pick<Deal, "owner_id" | "ens_label" | "ens_status">,
-): Promise<{ account: string; via: "ens" | "wallet" } | null> {
+  network = x402Network(),
+): Promise<{ account: string; via: "wallet" | "ens" } | null> {
+  const wallet = await magicHederaAccountOf(deal.owner_id, network).catch((err: unknown) => {
+    console.warn("x402 pay-to: Magic lookup failed", deal.owner_id, err);
+    return null;
+  });
+  if (wallet) return { account: wallet, via: "wallet" };
   if (deal.ens_label && deal.ens_status === "live") {
     const evm = await hederaAddressFromEns(ensName(deal.ens_label)).catch(() => null);
-    const account = evm && (await hederaAccountOf(evm));
+    const account = evm && (await hederaAccountOf(evm, network));
     if (account) return { account, via: "ens" };
   }
-  const wallet = ownerAddress(deal.owner_id);
-  const account = wallet && (await hederaAccountOf(wallet));
-  return account ? { account, via: "wallet" } : null;
+  return null;
 }
 
 export type PayQuote =

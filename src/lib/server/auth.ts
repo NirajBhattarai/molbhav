@@ -7,15 +7,20 @@ import { openSession } from "@/lib/session";
 
 let admin: Promise<Magic> | undefined;
 
-/** Who a Magic DID token belongs to. Throws when it's forged, expired, or for another app. */
-export async function verifyMagicToken(token: string) {
+/** Magic's admin SDK for this app (needs MAGIC_SECRET_KEY). */
+export function magicAdmin(): Promise<Magic> {
   const secret = process.env.MAGIC_SECRET_KEY?.trim();
-  if (!secret) throw new Error("MAGIC_SECRET_KEY is not set");
+  if (!secret) return Promise.reject(new Error("MAGIC_SECRET_KEY is not set"));
   admin ??= Magic.init(secret).catch((err) => {
     admin = undefined;
     throw err;
   });
-  const magic = await admin;
+  return admin;
+}
+
+/** Who a Magic DID token belongs to. Throws when it's forged, expired, or for another app. */
+export async function verifyMagicToken(token: string) {
+  const magic = await magicAdmin();
   magic.token.validate(token);
   const meta = await magic.users.getMetadataByToken(token);
   if (!meta.issuer || !meta.email) throw new Error("Magic token has no user");

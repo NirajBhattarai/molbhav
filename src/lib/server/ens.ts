@@ -1,4 +1,6 @@
 import "server-only";
+import { longZeroAddress, magicHederaAccountOf } from "@/lib/server/hedera-wallet";
+import { HEDERA_TESTNET } from "@/lib/x402";
 import { after } from "next/server";
 import {
   createPublicClient,
@@ -132,12 +134,14 @@ export async function syncStallName(stallId: string): Promise<void> {
 
     const base = appBase();
     const payout = ownerAddress(s.owner_id);
+    const hedera = await magicHederaAccountOf(s.owner_id, HEDERA_TESTNET).catch(() => null);
     const records = stallRecords({
       name: s.name,
       agentId: s.agent_id,
       cardUrl: agentUrls(base, s.agent_id).card,
       site: base,
       payout,
+      hederaPayout: hedera ? longZeroAddress(hedera) : null,
     });
     const want = recordsKey(records);
     if (s.ens_status === "live" && s.ens_records === want) return;

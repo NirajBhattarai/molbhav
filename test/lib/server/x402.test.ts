@@ -6,6 +6,7 @@ vi.mock("@/lib/server/redis", () => ({ redisConfigured: () => false, redis: vi.f
 vi.mock("@/lib/server/chat-cache", () => ({ wroteChat: vi.fn() }));
 vi.mock("@/lib/server/a2a/client", () => ({ appBase: () => "https://molbhav.test" }));
 vi.mock("@/lib/server/ens", () => ({ hederaAddressFromEns: vi.fn() }));
+vi.mock("@/lib/server/hedera-wallet", () => ({ magicHederaAccountOf: vi.fn() }));
 
 const facilitator = { getSupported: vi.fn(), verify: vi.fn(), settle: vi.fn() };
 vi.mock("@x402/core/http", () => ({
@@ -18,11 +19,13 @@ vi.mock("@x402/core/http", () => ({
 
 import { query } from "@/lib/server/db";
 import { hederaAddressFromEns } from "@/lib/server/ens";
+import { magicHederaAccountOf } from "@/lib/server/hedera-wallet";
 import type { PaymentPayload } from "@x402/core/types";
 import { quoteDeal, settleDeal, stallPayTo } from "@/lib/server/x402";
 
 const BARGAIN = "11111111-2222-3333-4444-555555555555";
 const SOYEB_EVM = "0x2E8d9978D48f18eb34AD0D6c5c9E2B2B5c006516";
+const SOYEB_HEDERA = "0.0.11328748"; // his Magic Hedera account, the one he can spend from
 const deal = {
   stall_id: "u-6c5846d7",
   stall_name: "MOHD SOYEB KHAN",
@@ -55,30 +58,34 @@ beforeEach(() => {
       },
     ],
   });
-  vi.mocked(hederaAddressFromEns).mockResolvedValue(SOYEB_EVM);
+  vi.mocked(hederaAddressFromEns).mockReset().mockResolvedValue(SOYEB_EVM);
+  vi.mocked(magicHederaAccountOf).mockReset().mockResolvedValue(SOYEB_HEDERA);
   delete process.env.X402_INR_PER_HBAR;
 });
 
 describe("stallPayTo", () => {
-  it("pays the Hedera account the stall's ENS name points to", async () => {
-    mirror("0.0.11328762");
-    await expect(stallPayTo(deal)).resolves.toEqual({ account: "0.0.11328762", via: "ens" });
+  it("pays the owner's Magic Hedera account, the one they can spend", async () => {
+    await expect(stallPayTo(deal)).resolves.toEqual({ account: SOYEB_HEDERA, via: "wallet" });
+    expect(magicHederaAccountOf).toHaveBeenCalledWith(deal.owner_id, "hedera:testnet");
+    expect(hederaAddressFromEns).not.toHaveBeenCalled();
   });
 
-  it("falls back to the owner's wallet without a live ENS name", async () => {
-    mirror("0.0.11328762");
-    await expect(stallPayTo({ ...deal, ens_status: null })).resolves.toEqual({
-      account: "0.0.11328762",
-      via: "wallet",
-    });
-    expect(hederaAddressFromEns).not.toHaveBeenCalled();
+  it("falls back to the stall's ENS Hedera address only when Magic can't say", async () => {
+    vi.mocked(magicHederaAccountOf).mockRejectedValue(new Error("magic down"));
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    mirror(SOYEB_HEDERA);
+    await expect(stallPayTo(deal)).resolves.toEqual({ account: SOYEB_HEDERA, via: "ens" });
+  });
+
+  it("never pays the owner's EVM address", async () => {
+    vi.mocked(magicHederaAccountOf).mockResolvedValue(null);
+    await expect(stallPayTo({ ...deal, ens_status: null })).resolves.toBeNull();
   });
 });
 
 describe("quoteDeal", () => {
   it("asks for the agreed price in HBAR, to the stall, fees on the facilitator", async () => {
     vi.mocked(query).mockResolvedValueOnce([deal]);
-    mirror("0.0.11328762");
     const quote = await quoteDeal(BARGAIN, deal.stall_id, "buyer");
     expect(quote.ok && quote.required).toMatchObject({
       x402Version: 2,
@@ -89,7 +96,7 @@ describe("quoteDeal", () => {
           network: "hedera:testnet",
           asset: "0.0.0",
           amount: "1000000000", // ₹150 at ₹15/HBAR = 10 HBAR
-          payTo: "0.0.11328762",
+          payTo: SOYEB_HEDERA,
           extra: { feePayer: "0.0.9185802" },
         },
       ],
@@ -121,7 +128,7 @@ describe("settleDeal", () => {
     network: "hedera:testnet" as const,
     asset: "0.0.0",
     amount: "1000000000",
-    payTo: "0.0.11328762",
+    payTo: SOYEB_HEDERA,
     maxTimeoutSeconds: 180,
     extra: { feePayer: "0.0.9185802" },
   };
@@ -131,7 +138,6 @@ describe("settleDeal", () => {
     vi.mocked(query)
       .mockResolvedValueOnce([deal])
       .mockResolvedValueOnce([{ version: 7 }]);
-    mirror("0.0.11328762");
     facilitator.verify.mockResolvedValue({ isValid: true, payer: "0.0.5001" });
     facilitator.settle.mockResolvedValue({
       success: true,
@@ -160,7 +166,6 @@ describe("settleDeal", () => {
 
   it("refuses a payment signed for a different amount, without asking the facilitator", async () => {
     vi.mocked(query).mockResolvedValueOnce([deal]);
-    mirror("0.0.11328762");
     const cheap: PaymentPayload = { ...payment, accepted: { ...accepted, amount: "1" } };
     await expect(settleDeal(BARGAIN, deal.stall_id, "buyer", cheap)).resolves.toMatchObject({
       ok: false,
@@ -171,7 +176,6 @@ describe("settleDeal", () => {
 
   it("leaves the deal unpaid when the facilitator rejects it", async () => {
     vi.mocked(query).mockResolvedValueOnce([deal]);
-    mirror("0.0.11328762");
     facilitator.verify.mockResolvedValue({
       isValid: false,
       invalidReason: "invalid_exact_hedera_payload_preflight_failed",
