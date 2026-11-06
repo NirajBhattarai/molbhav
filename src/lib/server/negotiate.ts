@@ -14,6 +14,8 @@ import { geminiConfigured } from "@/lib/server/gemini";
 import { query } from "@/lib/server/db";
 import { HANDED_OFF, OVER_BUDGET } from "@/lib/offer-status";
 import type { Offer, StallReply } from "@/lib/a2a/protocol";
+import { ensName } from "@/lib/ens";
+import { cardFromEns } from "@/lib/server/ens";
 import { rupees } from "@/lib/want";
 
 /*
@@ -52,7 +54,7 @@ async function seedOne(
 
   let talk: A2aTalk;
   try {
-    const stall = await client.stallById(s.agentId);
+    const stall = await findStall(client, s as OpenStallMatch & { agentId: string });
     talk = new A2aTalk(client, bargainId, s, stall);
   } catch (err) {
     const reason = err instanceof A2aCallError ? err.message : "Couldn’t reach this stall’s agent.";
@@ -80,6 +82,31 @@ async function declineStall(bargainId: string, stallId: string, reason: string) 
     current: null,
   });
   await setOffer({ ...ids, status: "declined", current: null });
+}
+
+/**
+ * The stall's agent, found the way an outside buyer's agent would: by its ENS name, whose
+ * agent-endpoint[a2a] record is the Agent Card, and whose card names it back. Falls back to the
+ * agent id when the stall has no name yet or the name doesn't check out.
+ */
+async function findStall(
+  client: A2aClient,
+  s: OpenStallMatch & { agentId: string },
+): Promise<StallCard> {
+  if (s.ensLabel) {
+    const name = ensName(s.ensLabel);
+    try {
+      const card = await cardFromEns(name);
+      if (card) {
+        const stall = await client.stall(card);
+        if (stall.agentId === s.agentId && stall.ens === name) return stall;
+        console.warn("seedHaggle ens mismatch", name, stall.agentId, stall.ens);
+      }
+    } catch (err) {
+      console.warn("seedHaggle ens lookup", name, err);
+    }
+  }
+  return client.stallById(s.agentId);
 }
 
 /** Offer moved on (buyer agreed elsewhere): stop this seed quietly. */
@@ -372,7 +399,9 @@ class A2aTalk {
 export async function pendingMatches(bargainId: string): Promise<OpenStallMatch[]> {
   if (!isBargainId(bargainId)) return [];
   return query<OpenStallMatch>(
-    `SELECT o.stall_id AS "stallId", s.agent_id AS "agentId", o.item_id AS "itemId",
+    `SELECT o.stall_id AS "stallId", s.agent_id AS "agentId",
+            CASE WHEN s.ens_status = 'live' THEN s.ens_label END AS "ensLabel",
+            o.item_id AS "itemId",
             i.name AS "itemName", i.price, i.lowest, s.style, s.name AS "stallName",
             s.lang AS "stallLang"
      FROM offers o

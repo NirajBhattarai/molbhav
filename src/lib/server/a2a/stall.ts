@@ -29,6 +29,7 @@ import { decideStallCounter, stallLeast, stallSettles } from "@/lib/server/stall
 import { MAX_COUNTERS, type Style } from "@/lib/server/strategy";
 import { LANG, isLang, type Lang } from "@/lib/languages";
 import { upiPayLink } from "@/lib/upi";
+import { ensName } from "@/lib/ens";
 import { rupees, words as wantWords } from "@/lib/want";
 import { basketBand, type BasketBand } from "@/lib/market";
 import { areaPrice } from "@/lib/server/market";
@@ -139,6 +140,8 @@ export type StallAgent = {
   lat: number | null;
   lng: number | null;
   items: StallAgentItem[];
+  /** Its ENS name (ENSv2), once that resolves on chain. */
+  ens?: string | null;
 };
 
 export type Negotiation = {
@@ -319,6 +322,7 @@ export function agentCard(agent: StallAgent, base: string) {
           required: true,
           params: {
             agentId: agent.agentId,
+            ...(agent.ens && { ens: agent.ens }),
             status: agent.open ? "open" : "closed",
             style: agent.style,
             lang: agent.lang,
@@ -361,9 +365,12 @@ async function stallAgentFromDb(agentId: string): Promise<StallAgent | null> {
     is_open: boolean;
     lat: number | null;
     lng: number | null;
+    ens_label: string | null;
+    ens_status: string | null;
     items: StallAgentItem[];
   }>(
     `SELECT s.id, s.agent_id, s.name, s.upi_id, s.upi_qr, s.style, s.lang, s.is_open, s.lat, s.lng,
+       s.ens_label, s.ens_status,
        json_agg(json_build_object('id', i.id, 'name', i.name, 'words', i.words, 'price', i.price,
          'lowest', i.lowest) ORDER BY i.id) AS items
      FROM stalls s
@@ -386,6 +393,7 @@ async function stallAgentFromDb(agentId: string): Promise<StallAgent | null> {
     lat: r.lat,
     lng: r.lng,
     items: r.items,
+    ens: r.ens_label && r.ens_status === "live" ? ensName(r.ens_label) : null,
   };
 }
 

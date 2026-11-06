@@ -287,6 +287,8 @@ export type OpenStallMatch = {
   stallId: string;
   /** Stall A2A agent id; null until the shopkeeper has set UPI. */
   agentId: string | null;
+  /** Its ENS label, once the name resolves on chain: the buyer agent finds the stall by name. */
+  ensLabel?: string | null;
   itemId: number;
   itemName: string;
   price: number;
