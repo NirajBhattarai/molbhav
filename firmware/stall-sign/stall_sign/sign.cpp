@@ -3,8 +3,8 @@
  *
  *   - Traffic light: green open, yellow paused, red closed (green blinks while a deal is running)
  *   - 1.3" OLED: shop name, status, deal, Wi-Fi
- *   - Bluetooth beacon named "MolbhavA-<agent id>" (BEACON.md), so phones nearby know the stall and its
- *     status with no Wi-Fi and no pairing
+ *   - Bluetooth beacon (BEACON.md) with the agent id and status, named with the stall's ENS label once
+ *     it has one (else "MolbhavA-<agent id>"), so phones nearby know the stall with no Wi-Fi or pairing
  *   - Wi-Fi sync with the server (optional): button presses are sent up, and changes made in the app
  *     come back down, with the current deal
  *
@@ -94,6 +94,8 @@ uint32_t pauseEndsAt = 0;  // millis() when a pause ends
 Deal deal = {false, "", "", "", 0};
 String stallName;
 String upiId = "";
+String ensLabel = "";  // from the server: the stall's ENS label, "" until it has one (BEACON.md)
+String ensFor = "";    // the agent id that label came with (a re-setup for another shop drops it)
 int dealsToday = 0;
 
 bool wifiConnecting = false;
@@ -104,6 +106,7 @@ uint32_t lastPoll = 0;
 uint32_t lastPushTry = 0;
 uint32_t restartAt = 0;  // set after new settings are saved
 int beaconSent = -1;     // last status byte broadcast, -1 = not broadcasting
+String nameSent;         // last scan-response name broadcast
 
 // ---------- Small helpers ----------
 
@@ -119,7 +122,23 @@ bool validAgentId(const String& id) {
 bool configured() { return validAgentId(shop.agentId); }
 bool serverEnabled() { return shop.server.length() > 0; }
 
-String beaconName() { return String(BEACON_NAME_PREFIX) + shop.agentId; }
+// An ENS label as the server makes them: 3-29 of a-z, 0-9 and single inner hyphens.
+bool validLabel(const String& s) {
+  if (s.length() < 3 || s.length() > BEACON_LABEL_MAX) return false;
+  if (s[0] == '-' || s[s.length() - 1] == '-') return false;
+  for (size_t i = 0; i < s.length(); i++) {
+    char c = s[i];
+    bool ok = (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '-';
+    if (!ok || (c == '-' && s[i + 1] == '-')) return false;
+  }
+  return true;
+}
+
+// The scan-response name: the ENS label phones resolve (<label>.molbhav.eth), else MolbhavA-<id>.
+String beaconName() {
+  bool mine = ensFor == shop.agentId && validLabel(ensLabel);
+  return mine ? ensLabel : String(BEACON_NAME_PREFIX) + shop.agentId;
+}
 
 uint32_t pauseLeftMs() {
   int32_t left = (int32_t)(pauseEndsAt - millis());
@@ -373,6 +392,17 @@ void loadShop() {
   shop.agentId.trim();
   shop.agentId.toLowerCase();
   stallName = shop.name;
+  ensLabel = shopPrefs.isKey("ens") ? shopPrefs.getString("ens") : String("");
+  ensFor = shopPrefs.isKey("ensFor") ? shopPrefs.getString("ensFor") : String("");
+}
+
+// The ENS label is kept across restarts, with the agent id it belongs to.
+void saveEns(const String& label) {
+  if (label == ensLabel && ensFor == shop.agentId) return;
+  ensLabel = label;
+  ensFor = shop.agentId;
+  shopPrefs.putString("ens", ensLabel);
+  shopPrefs.putString("ensFor", ensFor);
 }
 
 void saveShop() {
@@ -412,7 +442,8 @@ void updateBeacon() {
   }
 
   uint8_t b = beaconByte();
-  if (b == beaconSent) return;
+  String name = beaconName();
+  if (b == beaconSent && name == nameSent) return;
   beaconSent = b;
 
   std::string data;
@@ -428,6 +459,13 @@ void updateBeacon() {
 
   advertising->stop();
   advertising->setAdvertisementData(advert);
+  if (name != nameSent) {
+    NimBLEAdvertisementData response;
+    response.setName(name.c_str());
+    advertising->setScanResponseData(response);
+    nameSent = name;
+    Serial.printf("Beacon name: %s\n", name.c_str());
+  }
   advertising->start();
   Serial.printf("Beacon status byte: %u\n", b);
 }
@@ -440,6 +478,7 @@ void setupBeacon() {
   NimBLEAdvertisementData response;
   response.setName(name.c_str());
   NimBLEDevice::getAdvertising()->setScanResponseData(response);
+  nameSent = name;
 
   updateBeacon();
   if (configured()) Serial.printf("Broadcasting as %s\n", name.c_str());
@@ -553,6 +592,8 @@ void applyState(const String& json) {
   const char* name = doc["stallName"] | "";
   if (*name) stallName = name;
   upiId = (const char*)(doc["upiId"] | "");
+  // A server that predates ENS labels sends no field: keep the label the sign has.
+  if (doc["ensLabel"].is<const char*>()) saveEns(doc["ensLabel"].as<const char*>());
 
   JsonVariant d = doc["deal"];
   if (d.isNull()) {
@@ -824,6 +865,7 @@ void printHelp() {
   Serial.println("  set name <stall name>");
   Serial.println("  set server <url>      e.g. set server https://example.com   ('-' clears)");
   Serial.println("  set token <token>     ('-' clears)");
+  Serial.println("  set ens <label>       broadcast name, e.g. set ens mohd-soyeb-khan   ('-' clears)");
   Serial.println("  wifi <ssid> <pass>    join a network (no spaces in ssid)");
   Serial.println("  scan                  list Wi-Fi networks in range");
   Serial.println("  forget-wifi           forget the saved network");
@@ -932,8 +974,18 @@ void handleCommand(String line) {
       shop.server = value;
     } else if (key == "token") {
       shop.token = value;
+    } else if (key == "ens") {
+      value.toLowerCase();
+      if (value.length() && !validLabel(value)) {
+        Serial.printf("error ENS label must be 3-%d of a-z, 0-9 and single hyphens\n", BEACON_LABEL_MAX);
+        return;
+      }
+      saveEns(value);
+      updateBeacon();
+      Serial.printf("ok ens saved, broadcasting as %s\n", beaconName().c_str());
+      return;
     } else {
-      Serial.println("error unknown setting, use agent, name, server or token");
+      Serial.println("error unknown setting, use agent, name, server, token or ens");
       return;
     }
     saveShop();

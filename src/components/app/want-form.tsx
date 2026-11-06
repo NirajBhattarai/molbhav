@@ -364,6 +364,21 @@ function WantSheet({ onClose }: { onClose: () => void }) {
               : t("Looking for stalls nearby…")
             : t("Search by location")}
         </p>
+        {discovery === "nearby" && Object.keys(nearby.ens).length > 0 && (
+          <ul
+            aria-label={t("ENS names of stalls heard nearby")}
+            className="-mt-2 flex flex-wrap gap-1.5"
+          >
+            {Object.entries(nearby.ens).map(([agent, name]) => (
+              <li
+                key={agent}
+                className="rounded-full bg-muted px-2.5 py-0.5 font-mono text-xs text-muted-foreground"
+              >
+                {name}
+              </li>
+            ))}
+          </ul>
+        )}
         <input type="hidden" name="discovery" value={discovery} />
         <input type="hidden" name="lang" value={lang} />
         {here && (

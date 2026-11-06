@@ -4,8 +4,10 @@ A small sign for the stall counter that shows whether the stall is **open**, **p
 
 - **Traffic light + OLED:** green open, yellow paused (with "Back in 10 min"), red closed, green blinking
   while a deal is running. When a deal is agreed, the buzzer chimes and the screen shows the price.
-- **Bluetooth:** a beacon named `MolbhavA-<agent id>` carries the stall and its status, so phones nearby
-  find it with no Wi-Fi and no pairing. The format is in [BEACON.md](BEACON.md).
+- **Bluetooth:** a beacon carries the stall's agent id and status, so phones nearby find it with no
+  Wi-Fi and no pairing. It is named `MolbhavA-<agent id>` until the server sends the stall's ENS label,
+  then by that label (e.g. `mohd-soyeb-khan` for `mohd-soyeb-khan.molbhav.eth`). The format is in
+  [BEACON.md](BEACON.md).
 - **Wi-Fi (optional):** button presses are sent to the server, and changes made in the app come back to
   the sign every 5 seconds, with the current deal.
 

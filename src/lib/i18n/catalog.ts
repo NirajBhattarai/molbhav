@@ -2933,6 +2933,17 @@ export const CATALOG = {
     es: "Obteniendo su nombre ENS {name}…",
     fr: "Obtention de son nom ENS {name}…",
   },
+  "ENS names of stalls heard nearby": {
+    hi: "पास में सुनी गई दुकानों के ENS नाम",
+    mr: "जवळ ऐकू आलेल्या दुकानांची ENS नावे",
+    ta: "அருகில் கேட்ட கடைகளின் ENS பெயர்கள்",
+    ne: "नजिकै सुनिएका पसलहरूका ENS नाम",
+    ja: "近くで見つかった屋台の ENS 名",
+    ko: "근처에서 찾은 가게의 ENS 이름",
+    zh: "附近发现的摊位的 ENS 名称",
+    es: "Nombres ENS de los puestos cercanos",
+    fr: "Noms ENS des stands à proximité",
+  },
   "Copy agent card address": {
     hi: "एजेंट कार्ड का पता कॉपी करें",
     mr: "एजंट कार्डचा पत्ता कॉपी करा",
