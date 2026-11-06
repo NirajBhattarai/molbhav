@@ -426,3 +426,209 @@ export async function claimSeed(bargainId: string, stallId: string): Promise<boo
 }
 
 export { rupees };
+
+// ---------------------------------------------------------------------------------------------
+// Shopkeeper: today's deals on this stall.
+
+/**
+ * One buyer's order as the stall sees it: talking while agents move, offered once agreed
+ * (buyer still to pay), won when paid, lost when the buyer paid another stall, no-deal when declined.
+ */
+export type DealState = "talking" | "waiting" | "offered" | "won" | "lost" | "no-deal";
+
+export type DealView = {
+  id: string;
+  order: string;
+  item: string;
+  ask: number;
+  final: number | null;
+  current: number | null;
+  state: DealState;
+  /** When anything last happened (ms since 1970). */
+  lastAt: number;
+  /** The latest chat line, for the chat-list preview. */
+  last: LastLine | null;
+};
+
+type DealRow = {
+  bargain_id: string;
+  want: string;
+  buyer_lang: Lang;
+  item: string;
+  list_price: number;
+  status: OfferStatus;
+  asked: number | null;
+  current: number | null;
+  talking: boolean;
+  lost: boolean;
+  last_at: string | Date;
+  last_speaker: LastLine["speaker"] | null;
+  last_msg: string | null;
+  last_vars: Record<string, string> | null;
+  last_text: string | null;
+};
+
+const DEALS = `
+  SELECT o.bargain_id, b.want, b.buyer_lang, i.name AS item, i.price AS list_price,
+    o.status, o.asked, o.current,
+    EXISTS (SELECT 1 FROM turns t
+      WHERE t.bargain_id = o.bargain_id AND t.stall_id = o.stall_id
+        AND t.at > now() - interval '3 seconds') AS talking,
+    EXISTS (SELECT 1 FROM offers x
+      WHERE x.bargain_id = o.bargain_id AND x.stall_id <> o.stall_id AND x.status = 'paid') AS lost,
+    GREATEST(o.updated_at, COALESCE(l.at, o.updated_at)) AS last_at,
+    l.speaker AS last_speaker, l.msg AS last_msg, l.vars AS last_vars, l.text AS last_text
+  FROM offers o
+  JOIN bargains b ON b.id = o.bargain_id
+  JOIN stall_items i ON i.id = o.item_id
+  LEFT JOIN LATERAL (
+    SELECT t.speaker, t.msg, t.vars, t.text, t.at FROM turns t
+    WHERE t.bargain_id = o.bargain_id AND t.stall_id = o.stall_id
+    ORDER BY t.at DESC, t.id DESC LIMIT 1
+  ) l ON true`;
+
+const DEAL_STATE: Record<Exclude<OfferStatus, "waiting">, DealState> = {
+  haggling: "waiting",
+  agreed: "offered",
+  paid: "won",
+  declined: "no-deal",
+};
+
+function toDeal(r: DealRow): DealView {
+  const stored = (r.status === "waiting" ? "haggling" : r.status) as Exclude<
+    OfferStatus,
+    "waiting"
+  >;
+  const state = r.talking ? "talking" : r.lost && stored !== "paid" ? "lost" : DEAL_STATE[stored];
+  return {
+    id: r.bargain_id,
+    order: r.want,
+    item: r.item,
+    ask: r.asked ?? r.list_price,
+    final: state === "offered" || state === "won" ? r.current : null,
+    current: r.current,
+    state,
+    lastAt: new Date(r.last_at).getTime(),
+    last: r.last_speaker
+      ? { speaker: r.last_speaker, msg: r.last_msg, vars: r.last_vars, text: r.last_text }
+      : null,
+  };
+}
+
+/** Start of today on the India calendar, as a timestamp. */
+const TODAY = `date_trunc('day', now() AT TIME ZONE 'Asia/Kolkata') AT TIME ZONE 'Asia/Kolkata'`;
+
+/**
+ * Still worth the shopkeeper's attention: a conversation with anything said in the last hour, or a
+ * deal (agreed or paid) made today. Everything else has ended: gone quiet, said no, or the buyer
+ * took another stall.
+ */
+const ACTIVE = `((d.status IN ('agreed', 'paid') AND d.last_at >= ${TODAY})
+  OR (d.status = 'haggling' AND NOT d.lost AND d.last_at > now() - interval '1 hour'))`;
+
+/** This stall's bargains, as rows with `last_at`, `lost` and `status` to filter on. */
+const STALL_DEALS = `(${DEALS} WHERE o.stall_id = $1 AND NOT o.stall_hidden) d`;
+
+async function stallOf(user: Me) {
+  const [stall] = await query<{ id: string; now: number }>(
+    `SELECT id, extract(epoch FROM now())::float8 * 1000 AS now
+     FROM stalls WHERE owner_id = $1`,
+    [user.id],
+  );
+  return stall ?? null;
+}
+
+/** Counts for the shop screen's Bargains button: one small query, no rows. */
+export async function shopDealsSummary(user: Me) {
+  const stall = await stallOf(user);
+  if (!stall) return { active: 0, sold: 0, ended: 0 };
+  const [row] = await query<{ active: number; sold: number; ended: number }>(
+    `SELECT count(*) FILTER (WHERE ${ACTIVE} AND d.status <> 'paid')::int AS active,
+            count(*) FILTER (WHERE ${ACTIVE} AND d.status = 'paid')::int AS sold,
+            count(*) FILTER (WHERE NOT ${ACTIVE})::int AS ended
+     FROM ${STALL_DEALS}`,
+    [stall.id],
+  );
+  return row ?? { active: 0, sold: 0, ended: 0 };
+}
+
+/** The Bargains screen: active bargains in full, and only how many have ended. */
+export async function shopDealsActive(
+  user: Me,
+): Promise<{ deals: DealView[]; ended: number; now: number }> {
+  const stall = await stallOf(user);
+  if (!stall) return { deals: [], ended: 0, now: Date.now() };
+  const [deals, [count]] = await Promise.all([
+    query<DealRow>(`SELECT * FROM ${STALL_DEALS} WHERE ${ACTIVE} ORDER BY last_at DESC LIMIT 50`, [
+      stall.id,
+    ]),
+    query<{ n: number }>(`SELECT count(*)::int AS n FROM ${STALL_DEALS} WHERE NOT ${ACTIVE}`, [
+      stall.id,
+    ]),
+  ]);
+  return { deals: deals.map(toDeal), ended: count?.n ?? 0, now: stall.now };
+}
+
+/** Ended bargains, newest first. Fetched only when the shopkeeper opens that group. */
+export async function shopDealsEnded(user: Me): Promise<DealView[]> {
+  const stall = await stallOf(user);
+  if (!stall) return [];
+  const rows = await query<DealRow>(
+    `SELECT * FROM ${STALL_DEALS} WHERE NOT ${ACTIVE} ORDER BY last_at DESC LIMIT 50`,
+    [stall.id],
+  );
+  return rows.map(toDeal);
+}
+
+/** One order + chat for the stall's deal screen. */
+export async function stallDeal(user: Me, bargainId: string) {
+  if (!isBargainId(bargainId)) return null;
+  const [stall] = await query<{ id: string }>(`SELECT id FROM stalls WHERE owner_id = $1`, [
+    user.id,
+  ]);
+  if (!stall) return null;
+  const [[row], chat] = await Promise.all([
+    query<DealRow>(`${DEALS} WHERE o.stall_id = $1 AND o.bargain_id = $2::uuid`, [
+      stall.id,
+      bargainId,
+    ]),
+    shopChat(user, bargainId, stall.id),
+  ]);
+  if (!row || !chat) return null;
+  return {
+    deal: toDeal(row),
+    stallId: stall.id,
+    buyerLang: row.buyer_lang,
+    turns: chat.turns,
+    next: chat.next,
+  };
+}
+
+/** Chat for a stall owner (not the buyer). */
+async function shopChat(user: Me, bargainId: string, stallId: string): Promise<ChatView | null> {
+  const [owned] = await query<{ ok: boolean }>(
+    `SELECT true AS ok FROM stalls WHERE id = $1 AND owner_id = $2`,
+    [stallId, user.id],
+  );
+  if (!owned) return null;
+  const cached = await readChat<ChatView>(bargainId, stallId);
+  if (cached) return cached.chat;
+  const fresh = await loadChat(bargainId, stallId);
+  if (!fresh) return null;
+  await fillChat(bargainId, stallId, fresh);
+  return fresh.chat;
+}
+
+/** Hide ended bargains from the shop list (buyer still has them). */
+export async function hideStallDeals(user: Me, bargainIds: string[]) {
+  if (!bargainIds.length) return;
+  const [stall] = await query<{ id: string }>(`SELECT id FROM stalls WHERE owner_id = $1`, [
+    user.id,
+  ]);
+  if (!stall) return;
+  await query(
+    `UPDATE offers SET stall_hidden = true, updated_at = now()
+     WHERE stall_id = $1 AND bargain_id = ANY($2::uuid[])`,
+    [stall.id, bargainIds],
+  );
+}

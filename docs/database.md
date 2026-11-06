@@ -11,6 +11,7 @@ Migrations (apply with `npm run db:migrate`):
 - [`0005_sign_claims.sql`](../db/migrations/0005_sign_claims.sql) / [`0006_sign_claim_secret.sql`](../db/migrations/0006_sign_claim_secret.sql) — ESP32 claim
 - [`0007_bargains.sql`](../db/migrations/0007_bargains.sql) — `bargains`, `offers`, `turns`
 - [`0008_one_deal_per_bargain.sql`](../db/migrations/0008_one_deal_per_bargain.sql) — at most one agreed/paid offer per bargain
+- [`0009_offer_stall_hidden.sql`](../db/migrations/0009_offer_stall_hidden.sql) — shop can clear ended deals from their list (`offers.stall_hidden`)
 
 ## Purpose
 

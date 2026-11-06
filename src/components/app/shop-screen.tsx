@@ -25,6 +25,7 @@ import { HeroCard, StallStatusControl } from "@/components/app/hero";
 import { BlockPrint } from "@/components/brand/block-print";
 import { MenuSection } from "@/components/app/menu-editor";
 import { QrScanner } from "@/components/app/qr-scanner";
+import { BargainsButton } from "@/components/app/shop-deals";
 import { CopyButton } from "@/components/ui/copy-button";
 import { Field, Sheet, fieldInput } from "@/components/ui/sheet";
 import { outlineButton, primaryButton } from "@/components/ui/styles";
@@ -60,10 +61,13 @@ function setupSteps(stall: ShopStall | null, items: ShopItem[]) {
 export function ShopScreen({
   stall,
   items,
+  bargains,
   canReadMenu,
 }: {
   stall: ShopStall | null;
   items: ShopItem[];
+  /** Counts only: the list loads on the Bargains screen. */
+  bargains: { active: number; sold: number; ended: number };
   canReadMenu: boolean;
 }) {
   const t = useT();
@@ -173,6 +177,9 @@ export function ShopScreen({
           }
         />
       </HeroCard>
+
+      {/* What a shopkeeper checks most: right under open/closed, above the menu. */}
+      {ready && <BargainsButton summary={bargains} />}
 
       {!ready && (
         <section className="overflow-hidden rounded-2xl border border-secondary/50 bg-card shadow-sm">
