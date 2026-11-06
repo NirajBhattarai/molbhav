@@ -43,14 +43,38 @@ type StallRow = {
   id: string;
   name: string;
   upi_id: string | null;
+  lat: number | null;
+  lng: number | null;
+  has_menu: boolean;
   device_status: DeviceStatus;
   pause_until: Date | null;
   is_open: boolean;
 };
 
+/** Name + UPI + pin + at least one menu item — same gate as the shop "Open" toggle. */
+export function stallReady(stall: {
+  name: string;
+  upi_id: string | null;
+  lat: number | null;
+  lng: number | null;
+  has_menu: boolean;
+}) {
+  return (
+    stall.name.trim() !== "" &&
+    stall.upi_id != null &&
+    stall.upi_id !== "" &&
+    stall.lat != null &&
+    stall.lng != null &&
+    stall.has_menu
+  );
+}
+
 async function stallByAgent(agentId: string): Promise<StallRow | null> {
   const [row] = await query<StallRow>(
-    `SELECT id, name, upi_id, device_status, pause_until, is_open
+    `SELECT id, name, upi_id, lat, lng, device_status, pause_until, is_open,
+       EXISTS (
+         SELECT 1 FROM stall_items i WHERE i.stall_id = stalls.id AND i.active
+       ) AS has_menu
      FROM stalls WHERE agent_id = $1`,
     [agentId],
   );
@@ -63,7 +87,9 @@ function pauseSecondsLeft(until: Date | null): number {
 }
 
 /** Body the sign expects from GET state / POST status replies. */
-export function deviceStateBody(stall: StallRow) {
+export function deviceStateBody(
+  stall: Pick<StallRow, "name" | "upi_id" | "device_status" | "pause_until">,
+) {
   let status: DeviceStatus = stall.device_status;
   const pauseLeft = pauseSecondsLeft(stall.pause_until);
   // Pause expired → treat as open for the sign.
@@ -79,7 +105,7 @@ export function deviceStateBody(stall: StallRow) {
 
 /**
  * Apply a button press from the sign: update device_status and is_open.
- * Buyers see Open only when status is open.
+ * Buyers see Open only when status is open. Incomplete stalls stay closed.
  */
 export async function applyDeviceStatus(
   agentId: string,
@@ -89,9 +115,13 @@ export async function applyDeviceStatus(
   const stall = await stallByAgent(agentId);
   if (!stall) return null;
 
-  const open = status === "open";
+  // Sign can always close. Open / pause only after the shop checklist is done.
+  let next: DeviceStatus = status;
+  if (next !== "closed" && !stallReady(stall)) next = "closed";
+
+  const open = next === "open";
   const minutes = Math.min(120, Math.max(1, Math.round(Number(pauseMinutes) || 10)));
-  const pauseUntil = status === "paused" ? new Date(Date.now() + minutes * 60_000) : null;
+  const pauseUntil = next === "paused" ? new Date(Date.now() + minutes * 60_000) : null;
 
   const [row] = await query<StallRow>(
     `UPDATE stalls
@@ -100,8 +130,11 @@ export async function applyDeviceStatus(
          is_open = $4,
          updated_at = now()
      WHERE agent_id = $1
-     RETURNING id, name, upi_id, device_status, pause_until, is_open`,
-    [agentId, status, pauseUntil, open],
+     RETURNING id, name, upi_id, lat, lng, device_status, pause_until, is_open,
+       EXISTS (
+         SELECT 1 FROM stall_items i WHERE i.stall_id = stalls.id AND i.active
+       ) AS has_menu`,
+    [agentId, next, pauseUntil, open],
   );
   return row ? deviceStateBody(row) : null;
 }
@@ -109,6 +142,11 @@ export async function applyDeviceStatus(
 export async function readDeviceState(agentId: string) {
   const stall = await stallByAgent(agentId);
   if (!stall) return null;
+
+  // Incomplete stall must not stay open/paused from an earlier bad push.
+  if (!stallReady(stall) && stall.device_status !== "closed") {
+    return applyDeviceStatus(agentId, "closed");
+  }
 
   // Expire pause on read so buyers and the sign agree.
   if (stall.device_status === "paused" && pauseSecondsLeft(stall.pause_until) === 0) {

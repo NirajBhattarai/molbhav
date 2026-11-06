@@ -4,19 +4,20 @@ import { useEffect, useOptimistic, useState, useTransition, type FormEvent } fro
 import Link from "next/link";
 import { Camera, Check, MapPin, Pencil, Sparkles, Store } from "lucide-react";
 import { AgentCardAddress, stallAgentCardPath } from "@/components/app/agent-address";
-import { HeroCard, LiveToggle } from "@/components/app/hero";
+import { HomeRefresh } from "@/components/app/home-refresh";
+import { HeroCard, StallStatusControl } from "@/components/app/hero";
 import { MenuSection } from "@/components/app/menu-editor";
 import { QrScanner } from "@/components/app/qr-scanner";
 import { CopyButton } from "@/components/ui/copy-button";
 import { Field, Sheet, fieldInput } from "@/components/ui/sheet";
 import { outlineButton, primaryButton } from "@/components/ui/styles";
 import { LANG, LANGS, type Lang } from "@/lib/languages";
-import type { ShopItem, ShopStall, Style } from "@/lib/server/shop";
+import type { ShopItem, ShopStall, StallStatus, Style } from "@/lib/server/shop";
 import {
   linkStallSign,
   pinLocation,
   saveStallDetails,
-  setStallOpen,
+  setStallStatus,
   stallSignCredentials,
 } from "@/lib/shop-actions";
 import { isVpa, parseUpi } from "@/lib/upi";
@@ -50,10 +51,12 @@ export function ShopScreen({
   const done = steps.filter((s) => s.done).length;
   const ready = done === steps.length;
   const pinned = stall?.lat != null && stall?.lng != null;
-  const [open, setOpen] = useOptimistic(!!stall?.open && ready);
-  const [, startOpening] = useTransition();
+  const liveStatus: StallStatus = ready ? (stall?.status ?? "closed") : "closed";
+  const [status, setStatus] = useOptimistic(liveStatus);
+  const [, startStatus] = useTransition();
   const [pinBusy, setPinBusy] = useState(false);
   const [pinError, setPinError] = useState("");
+  const open = status === "open";
 
   function shareLocation() {
     setPinError("");
@@ -85,6 +88,7 @@ export function ShopScreen({
 
   return (
     <main className="mx-auto flex min-h-dvh w-full max-w-md flex-col gap-4 px-4 pt-[max(1.5rem,env(safe-area-inset-top))] pb-[max(1.5rem,env(safe-area-inset-bottom))]">
+      <HomeRefresh everyMs={4_000} />
       <header className="flex items-center justify-between gap-3">
         <div>
           <p className="text-sm font-medium text-muted-foreground">For shopkeepers</p>
@@ -122,22 +126,24 @@ export function ShopScreen({
           </button>
         </div>
 
-        <LiveToggle
-          on={open}
+        <StallStatusControl
+          status={status}
           disabled={!ready}
+          pauseSecondsLeft={stall?.pauseSecondsLeft ?? 0}
           onChange={(next) =>
-            startOpening(async () => {
-              setOpen(next);
-              await setStallOpen(next).catch(() => {});
+            startStatus(async () => {
+              setStatus(next);
+              await setStallStatus(next).catch(() => {});
             })
           }
-          title="Open for buyers"
           hint={
             !ready
-              ? "Finish setting up to open."
-              : open
-                ? "Your stall is open."
-                : "Buyers can’t find you right now."
+              ? "Finish the checklist below. Until then the stall stays closed."
+              : status === "open"
+                ? "Synced with your sign. Tap here or press POWER on the sign."
+                : status === "paused"
+                  ? "Synced with your sign. Tap here or press PAUSE on the sign."
+                  : "Synced with your sign. Tap Open here or press POWER on the sign."
           }
         />
       </HeroCard>

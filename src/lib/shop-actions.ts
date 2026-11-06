@@ -3,7 +3,7 @@
 import { refresh } from "next/cache";
 import { isLang, type Lang } from "@/lib/languages";
 import { aliasesFor, geminiConfigured, geminiJSON } from "@/lib/server/gemini";
-import { ensureUser, me, type Style } from "@/lib/server/shop";
+import { ensureUser, me, type StallStatus, type Style } from "@/lib/server/shop";
 import { buildClaimPack, claimSignWithCode } from "@/lib/server/sign-claim";
 import { stallDeviceToken } from "@/lib/server/stall-device";
 import { query, transaction } from "@/lib/server/db";
@@ -143,22 +143,45 @@ export async function linkStallSign(claimCode: string) {
 }
 
 /**
- * Open or closed. Opens only when named, UPI set, pinned, and at least one menu item.
+ * Open, closed, or paused. Open/pause only when named, UPI set, pinned, and menu ready.
+ * Closed always allowed.
  */
-export async function setStallOpen(open: boolean) {
+export async function setStallStatus(status: StallStatus, pauseMinutes = 10) {
   const user = await me();
+  const next: StallStatus =
+    status === "open" || status === "paused" || status === "closed" ? status : "closed";
+  const minutes = Math.min(120, Math.max(1, Math.round(Number(pauseMinutes) || 10)));
   await query(
     `UPDATE stalls s
-     SET is_open = $2,
-         device_status = CASE WHEN $2 THEN 'open' ELSE 'closed' END,
-         pause_until = NULL,
+     SET device_status = CASE
+           WHEN $2 = 'closed' THEN 'closed'
+           WHEN s.name <> '' AND s.upi_id IS NOT NULL AND s.lat IS NOT NULL AND s.lng IS NOT NULL
+             AND EXISTS (SELECT 1 FROM stall_items i WHERE i.stall_id = s.id AND i.active)
+             THEN $2::text
+           ELSE 'closed'
+         END,
+         pause_until = CASE
+           WHEN $2 = 'paused'
+             AND s.name <> '' AND s.upi_id IS NOT NULL AND s.lat IS NOT NULL AND s.lng IS NOT NULL
+             AND EXISTS (SELECT 1 FROM stall_items i WHERE i.stall_id = s.id AND i.active)
+             THEN now() + ($3::int * interval '1 minute')
+           ELSE NULL
+         END,
+         is_open = (
+           $2 = 'open'
+           AND s.name <> '' AND s.upi_id IS NOT NULL AND s.lat IS NOT NULL AND s.lng IS NOT NULL
+           AND EXISTS (SELECT 1 FROM stall_items i WHERE i.stall_id = s.id AND i.active)
+         ),
          updated_at = now()
-     WHERE owner_id = $1
-       AND (NOT $2 OR (s.name <> '' AND s.upi_id IS NOT NULL AND s.lat IS NOT NULL AND s.lng IS NOT NULL
-         AND EXISTS (SELECT 1 FROM stall_items i WHERE i.stall_id = s.id AND i.active)))`,
-    [user.id, open === true],
+     WHERE owner_id = $1`,
+    [user.id, next, minutes],
   );
   refresh();
+}
+
+/** @deprecated Prefer setStallStatus — kept for older call sites. */
+export async function setStallOpen(open: boolean) {
+  await setStallStatus(open ? "open" : "closed");
 }
 
 /** Add or edit a menu item. `price` = ask; `lowest` = absolute floor. */

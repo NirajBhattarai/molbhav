@@ -8,6 +8,8 @@ import { geminiConfigured } from "@/lib/server/gemini";
 export type Me = { id: string; email: string };
 export type Style = "friendly" | "firm";
 
+export type StallStatus = "open" | "closed" | "paused";
+
 export type ShopStall = {
   id: string;
   name: string;
@@ -15,7 +17,12 @@ export type ShopStall = {
   qr: string | null;
   style: Style;
   lang: Lang;
+  /** Buyer-facing: true only when status is open. */
   open: boolean;
+  /** Sign + shop status: open, closed, or paused. */
+  status: StallStatus;
+  /** Seconds left when status is paused. */
+  pauseSecondsLeft: number;
   lat: number | null;
   lng: number | null;
   agentId: string | null;
@@ -95,12 +102,15 @@ export async function myShop(user: Me): Promise<{
     style: Style;
     lang: Lang;
     is_open: boolean;
+    device_status: StallStatus;
+    pause_until: Date | null;
     lat: number | null;
     lng: number | null;
     agent_id: string | null;
     items: { id: number; name: string; price: number; lowest: number; aliases: string }[] | null;
   }>(
-    `SELECT s.id, s.name, s.upi_id, s.upi_qr, s.style, s.lang, s.is_open, s.lat, s.lng, s.agent_id,
+    `SELECT s.id, s.name, s.upi_id, s.upi_qr, s.style, s.lang, s.is_open, s.device_status, s.pause_until,
+       s.lat, s.lng, s.agent_id,
        (SELECT json_agg(json_build_object(
           'id', i.id, 'name', i.name, 'price', i.price, 'lowest', i.lowest, 'aliases', i.words
         ) ORDER BY i.id)
@@ -109,6 +119,19 @@ export async function myShop(user: Me): Promise<{
     [user.id],
   );
   if (!stall) return { stall: null, items: [], canReadMenu: geminiConfigured() };
+
+  let status: StallStatus = stall.device_status;
+  let pauseSecondsLeft = 0;
+  if (status === "paused" && stall.pause_until) {
+    pauseSecondsLeft = Math.max(0, Math.ceil((stall.pause_until.getTime() - Date.now()) / 1000));
+    if (pauseSecondsLeft === 0) {
+      status = "open";
+      pauseSecondsLeft = 0;
+    }
+  }
+  // Buyer flag wins if somehow out of sync; prefer device_status when present.
+  if (status === "open" && !stall.is_open) status = "closed";
+
   return {
     stall: {
       id: stall.id,
@@ -117,7 +140,9 @@ export async function myShop(user: Me): Promise<{
       qr: stall.upi_qr,
       style: stall.style,
       lang: stall.lang,
-      open: stall.is_open,
+      open: status === "open",
+      status,
+      pauseSecondsLeft,
       lat: stall.lat,
       lng: stall.lng,
       agentId: stall.agent_id,
