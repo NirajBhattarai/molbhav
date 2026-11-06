@@ -7,6 +7,7 @@ import {
   createWalletClient,
   encodeFunctionData,
   http,
+  labelhash,
   parseEventLogs,
   toHex,
   type Address,
@@ -25,7 +26,11 @@ import {
   permissionedResolverMulticallSnippet,
 } from "@ensdomains/ensjs-abi/v2/permissionedResolver";
 import { userRegistryRegisterSnippet } from "@ensdomains/ensjs-abi/v2/userRegistry";
-import { permissionedRegistryGetResolverSnippet } from "@ensdomains/ensjs-abi/v2/permissionedRegistry";
+import {
+  permissionedRegistryGetResolverSnippet,
+  permissionedRegistryGetStateSnippet,
+  permissionedRegistrySetResolverSnippet,
+} from "@ensdomains/ensjs-abi/v2/permissionedRegistry";
 import { encodeResolverSetterScope, resolverMulticallParameters } from "@ensdomains/ensjs/utils/v2";
 import {
   ENS_PARENT_DEFAULT,
@@ -64,6 +69,8 @@ const ALL_ROLES = BigInt("0x" + "1".repeat(64));
 const OWNER_ROLES = BigInt(0x10000); // ROLE_RENEW
 const YEAR_S = BigInt(31_536_000);
 const LOCK_S = 300;
+/** PermissionedRegistry status of a label: 0 available, 1 reserved, 2 registered. */
+const AVAILABLE = 0;
 
 const key = () => process.env.ENS_REGISTRAR_KEY?.trim() as Hex | undefined;
 const registry = () => process.env.ENS_REGISTRY?.trim() as Address | undefined;
@@ -113,10 +120,22 @@ async function withLock(run: () => Promise<void>) {
   }
 }
 
+/** A label's state in the market's registry: a name made before a stall was wiped stays here. */
+const onChainState = (label: string) =>
+  reader().readContract({
+    address: registry()!,
+    abi: permissionedRegistryGetStateSnippet,
+    functionName: "getState",
+    args: [BigInt(labelhash(label))],
+  });
+
 const calls = async (name: string, r: StallRecords) =>
   (await resolverMulticallParameters({ name, texts: r.texts, coins: r.coins })).map((c) =>
     encodeFunctionData(c as Parameters<typeof encodeFunctionData>[0]),
   );
+
+const sameWallet = (a: string, b: string | null) =>
+  Boolean(b) && a.toLowerCase() === b!.toLowerCase();
 
 /**
  * Gives a stall agent its ENS name, or brings its records up to date. Safe to call often: it does
@@ -170,8 +189,14 @@ export async function syncStallName(stallId: string): Promise<void> {
           )
         ).map((r) => r.ens_label),
       );
-      label = freeLabel(wanted, (l) => taken.has(l));
-      if (!label) return;
+      // The chain may hold labels the database forgot (a wiped stall): skip ones another wallet owns.
+      for (;;) {
+        label = freeLabel(wanted, (l) => taken.has(l));
+        if (!label) return;
+        const st = await onChainState(label);
+        if (st.status === AVAILABLE || sameWallet(st.latestOwner, payout ?? account.address)) break;
+        taken.add(label);
+      }
       await save("ens_label = $2", [label]);
     }
     const name = normalize(ensNameOf(label));
@@ -206,19 +231,36 @@ export async function syncStallName(stallId: string): Promise<void> {
 
     // 3. The subname itself: a token in the market's registry, owned by the shop's wallet.
     if (s.ens_status === "resolver") {
-      await send({
-        address: registry()!,
-        abi: userRegistryRegisterSnippet,
-        functionName: "register",
-        args: [
-          label,
-          payout ?? account.address,
-          "0x0000000000000000000000000000000000000000",
-          resolver,
-          OWNER_ROLES,
-          BigInt(Math.floor(Date.now() / 1000)) + YEAR_S,
-        ],
-      });
+      const st = await onChainState(label);
+      if (st.status !== AVAILABLE && sameWallet(st.latestOwner, payout ?? account.address)) {
+        // Already this shop's name (from a stall that was wiped): point it at the new resolver.
+        await send({
+          address: registry()!,
+          abi: permissionedRegistrySetResolverSnippet,
+          functionName: "setResolver",
+          args: [st.tokenId, resolver!],
+        });
+      } else if (st.status !== AVAILABLE) {
+        // Someone else's now: start over with a fresh label on the next sync.
+        await save(
+          "ens_label = NULL, ens_resolver = NULL, ens_status = NULL, ens_records = NULL",
+          [],
+        );
+        return;
+      } else
+        await send({
+          address: registry()!,
+          abi: userRegistryRegisterSnippet,
+          functionName: "register",
+          args: [
+            label,
+            payout ?? account.address,
+            "0x0000000000000000000000000000000000000000",
+            resolver,
+            OWNER_ROLES,
+            BigInt(Math.floor(Date.now() / 1000)) + YEAR_S,
+          ],
+        });
       await save("ens_status = 'registered'", []);
       s.ens_status = "registered";
     }
