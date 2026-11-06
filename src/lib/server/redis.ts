@@ -2,6 +2,7 @@ import "server-only";
 import { createClient, type RedisClientType } from "redis";
 
 // Redis from Vercel's Storage tab (Redis Cloud): one TCP connection per server instance, reused.
+// Also: buyer-limits:{userId} (spending limits, 10 min) — see server/limits.ts.
 
 let connecting: Promise<RedisClientType> | undefined;
 

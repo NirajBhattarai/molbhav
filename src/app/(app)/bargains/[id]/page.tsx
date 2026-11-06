@@ -2,14 +2,18 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
 import { ChevronRight } from "lucide-react";
+import { AutoOrderCard } from "@/components/app/auto-order-card";
 import { LinePreview } from "@/components/app/line-preview";
 import { LiveRefresh } from "@/components/app/live-refresh";
 import { Screen } from "@/components/app/screen";
 import { StallAvatar } from "@/components/app/stall-avatar";
 import { focusRing } from "@/components/ui/styles";
 import { T } from "@/lib/i18n";
+import { autoPending } from "@/lib/limits";
 import { bestPrice, isOpen, statusChip } from "@/lib/offer-status";
+import { autoOrderStep } from "@/lib/server/auto-order";
 import { me, myBargain, type OfferView } from "@/lib/server/bargains";
+import { decideBargain } from "@/lib/server/decide-bargain";
 import { pendingMatches, seedHaggle } from "@/lib/server/negotiate";
 import { rupees } from "@/lib/want";
 
@@ -23,8 +27,12 @@ async function BargainPageContent({ params }: { params: Promise<{ id: string }> 
   const pending = await pendingMatches(id);
   if (pending.length) {
     await seedHaggle(id, pending, bargain.budget).catch(() => {});
+    await decideBargain(id, user.id).catch((err) => console.error("decideBargain", id, err));
     bargain = (await myBargain(user, id)) ?? bargain;
   }
+  // Catch up auto-order if the background worker stopped mid-countdown.
+  await autoOrderStep(user.id, id).catch((err) => console.error("auto-order", err));
+  bargain = (await myBargain(user, id)) ?? bargain;
 
   const best = bestPrice(bargain.offers);
   // Going offers by price (cheapest first), then the ones with no price yet, then those that said no.
@@ -33,10 +41,11 @@ async function BargainPageContent({ params }: { params: Promise<{ id: string }> 
   const offers = [...bargain.offers].sort((a, b) => rank(a) - rank(b));
   const talking = offers.some((o) => isOpen(o.status));
   const going = offers.filter((o) => o.status !== "declined");
+  const autoBusy = bargain.autoOrder && (!bargain.auto || autoPending(bargain.auto));
 
   return (
     <Screen title={bargain.title} back="/bargains">
-      <LiveRefresh active={talking} />
+      <LiveRefresh active={talking || autoBusy} />
 
       <PriceBoard
         want={bargain.want}
@@ -47,6 +56,8 @@ async function BargainPageContent({ params }: { params: Promise<{ id: string }> 
         talking={talking}
         minutesAgo={bargain.minutesAgo}
       />
+
+      {bargain.auto && <AutoOrderCard bargainId={bargain.id} auto={bargain.auto} />}
 
       {!offers.length ? (
         <p className="mt-4 rounded-2xl border border-dashed border-border p-6 text-center text-muted-foreground">

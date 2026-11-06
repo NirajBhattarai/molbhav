@@ -4,8 +4,9 @@ import { after } from "next/server";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { isLang, type Lang } from "@/lib/languages";
+import { capped } from "@/lib/limits";
 import {
-  addLine,
+  agreeOfferFor,
   ensureUser,
   isBargainId,
   me,
@@ -13,11 +14,14 @@ import {
   refreshChat,
   type OpenStallMatch,
 } from "@/lib/server/bargains";
+import { claimPay, orderForBuyer, payFailed, stopOrder } from "@/lib/server/auto-order";
 import { wroteChat } from "@/lib/server/chat-cache";
+import { decideBargain } from "@/lib/server/decide-bargain";
 import { query } from "@/lib/server/db";
+import { getLimits, payingBreaks } from "@/lib/server/limits";
 import { seedHaggle } from "@/lib/server/negotiate";
 import { MAX_STALLS, pickStalls, scopeFrom, understandWant } from "@/lib/server/want";
-import { matchMenu, parseHeard, rupees, type MenuRow } from "@/lib/want";
+import { matchMenu, parseHeard, type MenuRow } from "@/lib/want";
 
 /** Home "Start bargaining": open a bargain against the nearest few matching stalls, then haggle. */
 export async function createBargain(form: FormData) {
@@ -41,16 +45,29 @@ export async function createBargain(form: FormData) {
   const title = heard.items.slice(0, 3).join(", ") || want.slice(0, 60);
   const stalls = await matchesFor(heard.english || want, heard.stalls);
 
+  const limits = await getLimits(user.id);
+  const budget = capped(heard.budget, limits);
+  const autoAgree = limits.autoAgree;
+  const autoOrder = autoAgree && limits.autoOrder;
+
   const id = await openBargain({
     buyerId: user.id,
     want,
     title,
-    budget: heard.budget,
+    budget,
     buyerLang,
     stalls,
+    autoAgree,
+    autoOrder,
   });
 
-  after(() => seedHaggle(id, stalls, heard.budget));
+  after(async () => {
+    await seedHaggle(id, stalls, budget);
+    await decideBargain(id, user.id).catch((err) => console.error("decideBargain", id, err));
+    if (autoOrder) {
+      await orderForBuyer(user.id, id).catch((err) => console.error("orderForBuyer", id, err));
+    }
+  });
   redirect(`/bargains/${id}`);
 }
 
@@ -105,79 +122,31 @@ async function matchesFor(
 export async function agreeOffer(bargainId: string, stallId: string) {
   if (!isBargainId(bargainId)) return;
   const user = await me();
-
-  // One statement checks and sets, so a double tap can't agree twice. The partial unique index
-  // `offers_one_deal` rejects a second deal on the same bargain from another stall's chat.
-  let won: { current: number; version: number }[];
-  try {
-    won = await query<{ current: number; version: number }>(
-      `UPDATE offers o SET status = 'agreed', version = o.version + 1, updated_at = now()
-       FROM bargains b
-       WHERE b.id = o.bargain_id AND b.buyer_id = $3
-         AND o.bargain_id = $1::uuid AND o.stall_id = $2
-         AND o.status = 'haggling' AND o.current IS NOT NULL
-       RETURNING o.current, o.version`,
-      [bargainId, stallId, user.id],
-    );
-  } catch (err) {
-    if ((err as { code?: string }).code === "23505") return; // another stall's deal won
-    throw err;
-  }
-  if (!won.length) return;
-  const price = won[0].current;
-  await wroteChat(bargainId, stallId, won[0].version);
-
-  await addLine({
-    bargainId,
-    stallId,
-    speaker: "agent",
-    msg: "I'll take this deal at {price}.",
-    vars: { price: rupees(price) },
-    status: "agreed",
-    current: price,
-  });
-  await addLine({
-    bargainId,
-    stallId,
-    speaker: "stall",
-    msg: "Okay, {price}. Deal.",
-    vars: { price: rupees(price) },
-    status: "agreed",
-    current: price,
-  });
-
-  // Decline the other offers still going. A seed still running on one of them sees it and stops.
-  const others = await query<{ stall_id: string; current: number | null; version: number }>(
-    `UPDATE offers SET status = 'declined', version = version + 1, updated_at = now()
-     WHERE bargain_id = $1::uuid AND stall_id <> $2 AND status = 'haggling'
-     RETURNING stall_id, current, version`,
-    [bargainId, stallId],
+  const [row] = await query<{ current: number | null }>(
+    `SELECT o.current FROM offers o JOIN bargains b ON b.id = o.bargain_id
+     WHERE o.bargain_id = $1::uuid AND o.stall_id = $2 AND b.buyer_id = $3
+       AND o.status = 'haggling'`,
+    [bargainId, stallId, user.id],
   );
-  for (const o of others) {
-    await wroteChat(bargainId, o.stall_id, o.version);
-    await addLine({
-      bargainId,
-      stallId: o.stall_id,
-      speaker: "agent",
-      msg: "I found it cheaper at another stall. Thank you!",
-      status: "declined",
-      current: o.current,
-    });
-  }
-
-  // Put the finished chats back in Redis so the next screen reads them from there.
-  await Promise.all(
-    [stallId, ...others.map((o) => o.stall_id)].map((s) => refreshChat(bargainId, s)),
-  );
-
+  if (row?.current != null && (await payingBreaks(user.id, row.current))) return;
+  const price = await agreeOfferFor(user.id, bargainId, stallId);
+  if (price == null) return;
   revalidatePath(`/bargains/${bargainId}`);
   revalidatePath(`/bargains/${bargainId}/${stallId}`);
 }
 
-/** Soft confirm: buyer says they've paid by UPI. */
+/** Soft confirm: buyer says they've paid by UPI / cash. */
 export async function markPaid(bargainId: string, stallId: string) {
   if (!isBargainId(bargainId)) return;
   const user = await me();
+  const [row] = await query<{ current: number | null }>(
+    `SELECT o.current FROM offers o JOIN bargains b ON b.id = o.bargain_id
+     WHERE o.bargain_id = $1::uuid AND o.stall_id = $2 AND b.buyer_id = $3
+       AND o.status = 'agreed'`,
+    [bargainId, stallId, user.id],
+  );
+  if (row?.current != null && (await payingBreaks(user.id, row.current))) return;
+
   const [paid] = await query<{ version: number }>(
     `UPDATE offers o SET status = 'paid', version = o.version + 1, updated_at = now()
      FROM bargains b
@@ -192,4 +161,32 @@ export async function markPaid(bargainId: string, stallId: string) {
   }
   revalidatePath(`/bargains/${bargainId}`);
   revalidatePath(`/bargains/${bargainId}/${stallId}`);
+}
+
+/** Buyer stops the auto-order countdown on this bargain. */
+export async function stopAutoOrder(bargainId: string) {
+  if (!isBargainId(bargainId)) return;
+  const user = await me();
+  await stopOrder(user.id, bargainId);
+  revalidatePath(`/bargains/${bargainId}`);
+}
+
+/**
+ * The countdown ended on the buyer's screen: may their agent pay now? Claims the payment once and
+ * returns the deal to pay with the buyer's Magic wallet, or null.
+ */
+export async function claimAgentPay(bargainId: string) {
+  if (!isBargainId(bargainId)) return null;
+  const user = await me();
+  const deal = await claimPay(user.id, bargainId);
+  if (!deal) revalidatePath(`/bargains/${bargainId}`);
+  return deal;
+}
+
+/** The buyer's wallet couldn't pay what the agent claimed; record why so the buyer can pay. */
+export async function agentPayFailed(bargainId: string, payError: string, payAccount?: string) {
+  if (!isBargainId(bargainId)) return;
+  const user = await me();
+  await payFailed(user.id, bargainId, payError, payAccount);
+  revalidatePath(`/bargains/${bargainId}`);
 }

@@ -3,10 +3,12 @@ import { HTTPFacilitatorClient } from "@x402/core/http";
 import type { PaymentPayload, PaymentRequired } from "@x402/core/types";
 import { ensName } from "@/lib/ens";
 import { appBase } from "@/lib/server/a2a/client";
+import { orderPaid } from "@/lib/server/auto-order";
 import { wroteChat } from "@/lib/server/chat-cache";
 import { query } from "@/lib/server/db";
 import { hederaAddressFromEns } from "@/lib/server/ens";
 import { magicHederaAccountOf } from "@/lib/server/hedera-wallet";
+import { payingBreaks } from "@/lib/server/limits";
 import { redis, redisConfigured } from "@/lib/server/redis";
 import {
   HEDERA_MAINNET,
@@ -147,6 +149,9 @@ export async function quoteDeal(
     return { ok: false, status: 409, error: "This deal is already paid." };
   if (deal.status !== "agreed" || !deal.current)
     return { ok: false, status: 409, error: "Agree a price first." };
+  if (await payingBreaks(buyerId, deal.current)) {
+    return { ok: false, status: 403, error: "That's over the limits you set." };
+  }
 
   const network = x402Network();
   const [payTo, payer] = await Promise.all([stallPayTo(deal), feePayer(network)]);
@@ -247,7 +252,10 @@ export async function settleDeal(
       settled.payer ?? verified.payer ?? null,
     ],
   );
-  if (paid) await wroteChat(bargainId, stallId, paid.version);
+  if (paid) {
+    await wroteChat(bargainId, stallId, paid.version);
+    await orderPaid(bargainId, stallId, settled.transaction);
+  }
   return {
     ok: true,
     transaction: settled.transaction,
