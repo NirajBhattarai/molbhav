@@ -5,8 +5,9 @@ agent. Discovery follows the protocol’s
 [agent discovery](https://a2a-protocol.org/latest/topics/agent-discovery/) topic: a JSON
 **Agent Card** at a well-known URL describes who the agent is, where to talk to it, and what it can do.
 
-This repo ships **stall Agent Cards** first. JSON-RPC bargaining (`rfq` / `counter` / `accept`) on the
-endpoint is next; until then the card is still public so other agents can find the stall.
+This repo ships **stall agents**: public Agent Cards plus JSON-RPC bargaining
+(`rfq` / `counter` / `accept` / `decline`) at the stall endpoint. No market directory yet — the buyer
+agent finds stalls via BLE / GPS / direct card URL.
 
 ## How a stall becomes an agent
 
@@ -67,33 +68,40 @@ GET /a2a/extensions/bargain/v1
 
 Code:
 
-| Piece                          | Where                                   |
-| ------------------------------ | --------------------------------------- |
-| Load stall + build card        | `src/lib/server/a2a/stall.ts`           |
-| Offer signing key (public `x`) | `src/lib/server/a2a/keys.ts`            |
-| HTTP helpers (CORS, ETag)      | `src/lib/server/a2a/http.ts`            |
-| Card route                     | `src/app/a2a/agents/[id]/.well-known/…` |
-| Extension docs                 | `src/app/a2a/extensions/[name]/v1`      |
+| Piece                          | Where                                                                                     |
+| ------------------------------ | ----------------------------------------------------------------------------------------- |
+| Load stall + build card        | `src/lib/server/a2a/stall.ts` (Redis `agent:{id}`, 10 min; invalidate on shop/sign write) |
+| JSON-RPC                       | `src/lib/server/a2a/rpc/` (`stallRpc`, `readRpc`, `handleStallSend`, `handleTaskMethod`)  |
+| Offer signing key (public `x`) | `src/lib/server/a2a/keys.ts`                                                              |
+| HTTP helpers (CORS, ETag)      | `src/lib/server/a2a/http.ts`                                                              |
+| Card route                     | `src/app/a2a/agents/[id]/.well-known/…`                                                   |
+| Extension docs                 | `src/app/a2a/extensions/[name]/v1`                                                        |
 
-## Endpoint (not bargaining yet)
+## Endpoint (bargaining)
 
 ```text
 POST /a2a/agents/{agentId}
 ```
 
-Named on the card as the JSON-RPC interface. Today it answers `-32601` / 501 until SendMessage is
-wired. Discovery and the card do not depend on that.
+JSON-RPC 2.0 with headers `A2A-Version: 1.0` and `A2A-Extensions: {origin}/a2a/extensions/bargain/v1`.
+
+| Method                                       | Role                                               |
+| -------------------------------------------- | -------------------------------------------------- |
+| `SendMessage` / `SendStreamingMessage`       | `hello` / `rfq` / `counter` / `accept` / `decline` |
+| `GetTask` / `SubscribeToTask` / `CancelTask` | Follow or cancel the task                          |
+
+Pricing rules live in `src/lib/server/stall-agent.ts`. Gemini wording (and a price pick
+inside the allowed range) is `src/lib/server/ai-agent.ts`; without Gemini the stall falls
+back to catalog notes. Accepted outside deals are stored as `bargains.source = 'a2a'` for
+the shop screen.
 
 ## Spec references
 
 - [A2A specification](https://a2a-protocol.org/latest/specification/) — `AgentCard`, capabilities, skills
-- [Agent discovery](https://a2a-protocol.org/latest/topics/agent-discovery/) — `/.well-known/agent-card.json` pattern
-- [Extensions](https://a2a-protocol.org/latest/topics/extensions/) — `capabilities.extensions` + `A2A-Extensions` header
+- [Agent discovery](https://a2a-protocol.org/latest/topics/agent-discovery/) — well-known Agent Card
+- [Extensions](https://a2a-protocol.org/latest/topics/extensions/) — `capabilities.extensions` + `A2A-Extensions`
 
 ## Not in this slice
 
-- Market directory card at `/.well-known/agent-card.json` (`find` / catalog)
-- Stall JSON-RPC bargaining and streaming
-- Buyer agent as an A2A client
-
-Those land after stall cards are stable in production.
+- Market directory card / `find` / catalog
+- Buyer agent as an A2A client / buyer Gemini (app still uses local `seedHaggle`)

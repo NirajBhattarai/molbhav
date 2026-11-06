@@ -29,10 +29,17 @@ understands and the extra data on its Agent Card. It is **required**: send
 | \`menu\`     | \`[{name, aliases, priceInr}]\`: asking prices, never the lowest        |
 | \`lang\`     | the stall's own language (an app language code)                       |
 
-## Messages (coming next)
+## Messages
 
-JSON-RPC at the stall's endpoint will accept \`rfq\` / \`counter\` / \`accept\` / \`decline\`. Until that
-wire is live, the Agent Card is published so other agents can discover the stall.
+Each message has one part \`{"data": {...}, "mediaType": "application/json"}\`. Prices are whole rupees.
+
+| Buyer's agent sends | Stall agent answers | Task state |
+| --- | --- | --- |
+| \`{"type":"hello"}\` | \`welcome\` + menu | \`INPUT_REQUIRED\` |
+| \`{"type":"rfq","basket":[…]}\` | signed \`offer\` at ask | \`INPUT_REQUIRED\` |
+| \`{"type":"counter","targetInr":…}\` | lower signed \`offer\` | \`INPUT_REQUIRED\` |
+| \`{"type":"accept","offerId":"…"}\` | \`deal\` + UPI \`payee\` | \`COMPLETED\` |
+| \`{"type":"decline"}\` | | \`CANCELED\` |
 `,
   directory: `# Molbhav directory extension, v1
 

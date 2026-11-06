@@ -1,5 +1,6 @@
 import "server-only";
 import { createHmac, timingSafeEqual } from "node:crypto";
+import { forgetAgents } from "@/lib/server/a2a/stall";
 import { query } from "@/lib/server/db";
 
 export type DeviceStatus = "open" | "closed" | "paused";
@@ -136,6 +137,7 @@ export async function applyDeviceStatus(
        ) AS has_menu`,
     [agentId, next, pauseUntil, open],
   );
+  await forgetAgents(agentId);
   return row ? deviceStateBody(row) : null;
 }
 
