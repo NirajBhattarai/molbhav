@@ -86,7 +86,7 @@ export function ShopScreen({
         <Link
           href="/profile"
           title={email}
-          className="max-w-[11rem] truncate text-sm font-medium text-muted-foreground hover:text-foreground"
+          className="-mr-2 inline-flex h-11 max-w-[12rem] items-center truncate rounded-lg px-2 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
         >
           {email}
         </Link>
@@ -356,7 +356,7 @@ function StallDetailsForm({ stall, onClose }: { stall: ShopStall | null; onClose
                     setScanning(true);
                   }}
                   aria-label="Scan UPI QR"
-                  className="absolute top-1/2 right-1 flex size-10 -translate-y-1/2 items-center justify-center rounded-md text-muted-foreground hover:text-foreground"
+                  className="absolute top-1/2 right-0.5 flex size-11 -translate-y-1/2 items-center justify-center rounded-md text-muted-foreground hover:text-foreground"
                 >
                   <Camera className="size-5" aria-hidden />
                 </button>

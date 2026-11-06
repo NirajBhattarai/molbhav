@@ -274,7 +274,7 @@ function MenuList({
                   onQuery("");
                   search.current?.focus();
                 }}
-                className={`absolute top-1/2 right-1 flex size-9 -translate-y-1/2 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground ${focusRing}`}
+                className={`absolute top-1/2 right-0 flex size-11 -translate-y-1/2 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground ${focusRing}`}
               >
                 <X className="size-4" aria-hidden />
               </button>
@@ -467,7 +467,7 @@ function NoticeBar({ notice, onDismiss }: { notice: Notice; onDismiss: () => voi
         type="button"
         onClick={onDismiss}
         aria-label="Dismiss"
-        className={`-my-1 flex size-9 shrink-0 items-center justify-center rounded-lg hover:bg-current/10 ${focusRing}`}
+        className={`-my-2 flex size-11 shrink-0 items-center justify-center rounded-lg hover:bg-current/10 ${focusRing}`}
       >
         <X className="size-4" aria-hidden />
       </button>
@@ -626,7 +626,7 @@ function ItemForm({
                 id="item-name-twin"
                 type="button"
                 onClick={() => onOpen(twin)}
-                className={`inline-flex h-10 shrink-0 items-center gap-1 rounded-lg bg-card px-3 text-sm font-semibold shadow-sm transition-colors hover:bg-muted ${focusRing}`}
+                className={`inline-flex h-11 shrink-0 items-center gap-1 rounded-lg bg-card px-3 text-sm font-semibold shadow-sm transition-colors hover:bg-muted ${focusRing}`}
               >
                 Edit it
                 <ChevronRight className="size-4" aria-hidden />
@@ -1073,7 +1073,7 @@ function MenuReview({
               <button
                 type="button"
                 onClick={undo}
-                className={`inline-flex h-10 shrink-0 items-center gap-1.5 rounded-lg px-3 font-semibold hover:bg-background/15 ${focusRing}`}
+                className={`inline-flex h-11 shrink-0 items-center gap-1.5 rounded-lg px-3 font-semibold hover:bg-background/15 ${focusRing}`}
               >
                 <Undo2 className="size-4" aria-hidden />
                 Undo
