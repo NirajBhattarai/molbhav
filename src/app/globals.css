@@ -244,6 +244,16 @@
   }
 }
 
+/* Countdown bar before auto-search after a spoken order. */
+@keyframes drain {
+  from {
+    transform: scaleX(1);
+  }
+  to {
+    transform: scaleX(0);
+  }
+}
+
 /* Menu scan: a highlight band sweeps down the photo and back. */
 @keyframes scan {
   from {
