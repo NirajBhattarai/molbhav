@@ -2,11 +2,11 @@ import { connection } from "next/server";
 import { Suspense } from "react";
 import { HomeRefresh } from "@/components/app/home-refresh";
 import { Screen } from "@/components/app/screen";
+import { StallsNear } from "@/components/app/stalls-near";
 import { WantForm } from "@/components/app/want-form";
 import { BlockPrint } from "@/components/brand/block-print";
 import { Logo } from "@/components/brand/logo";
 import { T } from "@/lib/i18n";
-import { isLang } from "@/lib/languages";
 import { stallsNear } from "@/lib/server/shop";
 
 export default function Home() {
@@ -68,30 +68,5 @@ async function Stalls() {
       </p>
     );
   }
-  return (
-    <ul className="divide-y divide-border rounded-xl border border-border bg-card">
-      {stalls.map((s, i) => {
-        const code = isLang(s.lang) ? s.lang : "en";
-        return (
-          <li
-            key={s.id}
-            className={`flex animate-[rise_300ms_var(--ease-out)_both] items-center gap-3 p-4 ${s.open ? "" : "opacity-60"}`}
-            style={{ animationDelay: `${Math.min(i, 6) * 40}ms` }}
-          >
-            <span className="grid size-10 shrink-0 place-items-center rounded-full bg-muted font-display font-bold text-primary">
-              {s.name[0]}
-            </span>
-            <span className="min-w-0 flex-1">
-              <span className="block truncate font-medium">{s.name}</span>
-              <span className="block truncate text-sm text-muted-foreground">
-                <T msg={s.open ? "Open" : "Closed"} />
-                {" · "}
-                <T msg="Speaks {language}" language={code} />
-              </span>
-            </span>
-          </li>
-        );
-      })}
-    </ul>
-  );
+  return <StallsNear stalls={stalls} />;
 }
