@@ -7,7 +7,7 @@ import { redis, redisConfigured } from "@/lib/server/redis";
  *   write  Postgres first → then mark the chat's new version in Redis and drop the old copy;
  *          after a whole step (a haggle, an Agree, Paid) the fresh chat is copied back in.
  *
- *   chat:{bargainId}:{stallId}     "<version>|<json>"   the chat as the buyer sees it
+ *   chat:v2:{bargainId}:{stallId}  "<version>|<json>"   the chat as the buyer sees it
  *   chat-v:{bargainId}:{stallId}   "<version>"          newest version written to Postgres
  *
  * Every write bumps offers.version. A copy older than chat-v is never served or stored, so a slow
@@ -22,7 +22,8 @@ export function chatCacheTtl(): number {
   return Number.isFinite(n) && n > 0 ? Math.floor(n) : DEFAULT_TTL;
 }
 
-const dataKey = (b: string, s: string) => `chat:${b}:${s}`;
+// v2: lines carry their time and status. Bump when ChatView changes shape.
+const dataKey = (b: string, s: string) => `chat:v2:${b}:${s}`;
 const versionKey = (b: string, s: string) => `chat-v:${b}:${s}`;
 
 // Serve the copy only if nothing newer has been written since it was made.
