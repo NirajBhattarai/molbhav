@@ -155,7 +155,7 @@ bool pressed(Button& b) {
   if (isDown == b.down || now - b.changedAt < DEBOUNCE_MS) return false;
   b.down = isDown;
   b.changedAt = now;
-  return isDown;
+  return isDown;  // true only on the press edge (high→low), not on release
 }
 
 // ---------- Buzzer ----------
@@ -268,10 +268,14 @@ void screenLines(String& title, String& word, String& line1, String& line2, Stri
       word = "SET UP";
       line1 = "Join " + apName;
       line2 = "Pass " + String(SETUP_AP_PASSWORD);
-    } else {
+    } else if (WiFi.status() != WL_CONNECTED) {
       word = "SET UP";
       line1 = "Connecting WiFi...";
       line2 = "Then enter code in app";
+    } else {
+      word = "SET UP";
+      line1 = "Getting claim code...";
+      line2 = serverOk ? "Talking to Molbhav" : "Server not reached yet";
     }
     return;
   }
@@ -494,7 +498,7 @@ bool request(const char* method, const char* path, const String& body, String& o
   WiFiClientSecure tls;
   WiFiClient plain;
   HTTPClient http;
-  http.setConnectTimeout(HTTP_TIMEOUT_MS);
+  http.setConnectTimeout(HTTP_CONNECT_TIMEOUT_MS);
   http.setTimeout(HTTP_TIMEOUT_MS);
 
   bool begun;
@@ -656,10 +660,17 @@ void onSaveParams() {
   saveShop();
   printShop();
   stallName = shop.name;
-  if (configured()) restartAt = millis() + 2000;
+  // Shop fields saved (claim pack / advanced). Wi‑Fi SSID is handled by onWifiSaved.
+  restartAt = millis() + 2000;
 }
 
-void setupWifi(bool openSetup) {
+// After the phone saves market Wi‑Fi on the portal, reboot so we join as a client and show the code.
+void onWifiSaved() {
+  Serial.println("Wi-Fi saved — restarting to join and show claim code");
+  restartAt = millis() + 1500;
+}
+
+void setupWifi(bool forcePortal) {
   WiFi.mode(WIFI_STA);
   if (digitalRead(PIN_BTN_POWER) == LOW) {
     wifiManager.resetSettings();
@@ -677,6 +688,7 @@ void setupWifi(bool openSetup) {
   wifiManager.addParameter(&fieldServer);
   wifiManager.addParameter(&fieldToken);
   wifiManager.setSaveParamsCallback(onSaveParams);
+  wifiManager.setSaveConfigCallback(onWifiSaved);
   wifiManager.setTitle("Molbhav Stall Sign");
   // Configure WiFi first; claim pack is optional. OLED code is used after Wi‑Fi joins.
   std::vector<const char*> menu = {"wifi", "param", "info", "exit"};
@@ -684,13 +696,27 @@ void setupWifi(bool openSetup) {
   wifiManager.setConfigPortalBlocking(false);
   wifiManager.setConnectTimeout(15);
 
-  if (openSetup) {
-    wifiManager.startConfigPortal(apName.c_str(), SETUP_AP_PASSWORD);
-    portalOpen = true;
-  } else {
-    portalOpen = !wifiManager.autoConnect(apName.c_str(), SETUP_AP_PASSWORD);
+  if (!forcePortal) {
+    // Non-blocking autoConnect often opens the portal before STA joins. Connect ourselves first.
+    String ssid = wifiManager.getWiFiSSID(true);
+    String pass = wifiManager.getWiFiPass(true);
+    if (ssid.length()) {
+      Serial.printf("Joining saved Wi-Fi %s …\n", ssid.c_str());
+      WiFi.begin(ssid.c_str(), pass.c_str());
+      uint32_t start = millis();
+      while (WiFi.status() != WL_CONNECTED && millis() - start < 20000UL) delay(200);
+      if (WiFi.status() == WL_CONNECTED) {
+        portalOpen = false;
+        Serial.printf("Wi-Fi connected: %s\n", WiFi.localIP().toString().c_str());
+        return;
+      }
+      Serial.println("Saved Wi-Fi did not connect — opening setup hotspot");
+    }
   }
-  if (portalOpen) Serial.printf("Setup page: join Wi-Fi %s (password %s), open 192.168.4.1\n", apName.c_str(), SETUP_AP_PASSWORD);
+
+  wifiManager.startConfigPortal(apName.c_str(), SETUP_AP_PASSWORD);
+  portalOpen = true;
+  Serial.printf("Setup page: join Wi-Fi %s (password %s), open 192.168.4.1\n", apName.c_str(), SETUP_AP_PASSWORD);
 }
 
 // 32 hex characters from the hardware random generator, made once and kept in flash.
@@ -766,11 +792,12 @@ void serviceClaim() {
 void serviceWifi() {
   if (!portalOpen) return;
   wifiManager.process();
-  // Stay in setup until the chip has an agent id, even after Wi-Fi connects.
-  if (WiFi.status() == WL_CONNECTED && configured()) {
+  // Once market Wi‑Fi is up, leave the hotspot so we can register the claim code (or run the shop).
+  if (WiFi.status() == WL_CONNECTED) {
     wifiManager.stopConfigPortal();
     portalOpen = false;
     lastPoll = 0;
+    lastClaimTry = 0;
     Serial.printf("Wi-Fi connected: %s\n", WiFi.localIP().toString().c_str());
   }
 }
@@ -801,6 +828,7 @@ void printHelp() {
   Serial.println("  scan                  list Wi-Fi networks in range");
   Serial.println("  forget-wifi           forget the saved network");
   Serial.println("  reset-shop            clear this chip's shop settings");
+  Serial.println("  buttons               read POWER/PAUSE pins for 5s (for wiring checks)");
   Serial.println("  restart");
 }
 
@@ -854,6 +882,24 @@ void handleCommand(String line) {
   if (cmd == "reset-shop") {
     shopPrefs.clear();
     Serial.println("ok shop cleared, restart to apply");
+    return;
+  }
+  if (cmd == "buttons") {
+    Serial.printf("POWER=GPIO%d  PAUSE=GPIO%d  (1=released, 0=pressed). Press each button.\n",
+                  PIN_BTN_POWER, PIN_BTN_PAUSE);
+    uint32_t end = millis() + 5000;
+    int lastP = -1, lastA = -1;
+    while (millis() < end) {
+      int p = digitalRead(PIN_BTN_POWER);
+      int a = digitalRead(PIN_BTN_PAUSE);
+      if (p != lastP || a != lastA) {
+        Serial.printf("  POWER=%d PAUSE=%d\n", p, a);
+        lastP = p;
+        lastA = a;
+      }
+      delay(10);
+    }
+    Serial.println("ok buttons done");
     return;
   }
   if (cmd == "wifi") {
@@ -948,10 +994,11 @@ void setup() {
   setupBeacon();
   printShop();
 
-  bool openSetup = !configured() || digitalRead(PIN_BTN_PAUSE) == LOW;
-  wifiConnecting = !openSetup;
+  // Hold PAUSE while powering on to force the setup hotspot. Otherwise try saved Wi‑Fi first.
+  bool forcePortal = digitalRead(PIN_BTN_PAUSE) == LOW;
+  wifiConnecting = !forcePortal;
   refreshScreen(true);
-  setupWifi(openSetup);
+  setupWifi(forcePortal);
   wifiConnecting = false;
   refreshScreen(true);
 
@@ -962,9 +1009,16 @@ void setup() {
 void loop() {
   readSerial();
 
+  // Read buttons before any network call — HTTP is blocking and would miss presses.
   if (configured()) {
-    if (pressed(powerButton)) pressPower();
-    if (pressed(pauseButton)) pressPause();
+    if (pressed(powerButton)) {
+      Serial.println("Button: POWER");
+      pressPower();
+    }
+    if (pressed(pauseButton)) {
+      Serial.println("Button: PAUSE");
+      pressPause();
+    }
     if (status == ST_PAUSED && pauseLeftMs() == 0) {
       beep(2400, 60);
       setStatus(ST_OPEN, true);  // pause is over

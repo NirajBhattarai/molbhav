@@ -28,12 +28,14 @@
 #define STATUS_PATH "/api/stall/device/status"
 #define STATE_PATH "/api/stall/device/state"
 
-#define POLL_INTERVAL_MS 3000  // how often to pull phone/app changes onto the sign
-#define PUSH_RETRY_MS 3000     // wait between retries when a button change can't be sent
-#define HTTP_TIMEOUT_MS 3000
+#define POLL_INTERVAL_MS 5000  // how often to pull phone/app changes onto the sign
+#define PUSH_RETRY_MS 2000     // wait between retries when a button change can't be sent
+// Keep this short: HTTP is blocking, so long timeouts make POWER/PAUSE feel dead.
+#define HTTP_TIMEOUT_MS 5000
+#define HTTP_CONNECT_TIMEOUT_MS 2500
 // After a button press, the sign keeps its local status this long even if the phone
 // changes it mid-flight; then the server (phone or last saved) wins.
-#define LOCAL_STATUS_HOLD_MS 8000
+#define LOCAL_STATUS_HOLD_MS 12000
 
 // ---------- Wi-Fi setup hotspot ----------
 // The sign opens a hotspot named SETUP_AP_PREFIX + the last 4 hex digits of the chip's MAC address,
