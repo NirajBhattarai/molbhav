@@ -139,6 +139,8 @@
 }
 
 @custom-variant dark (&:where(.dark, .dark *));
+/* Short phones: tighten the sign-in hero so the form stays above the fold. */
+@custom-variant short (@media (max-height: 740px) and (max-width: 1023px));
 
 @theme inline {
   --color-background: var(--background);
@@ -189,6 +191,16 @@
   --font-display: var(--font-bricolage), var(--font-geist-sans);
 }
 
+/*
+ * Motion: `ease-out` for UI entrances, `ease-in-out` for things that move while on screen,
+ * `ease-drawer` for bottom sheets. Keep UI under 300 ms where possible.
+ */
+@theme {
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
+  --ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);
+}
+
 @layer base {
   * {
     border-color: var(--border);
@@ -211,15 +223,20 @@
     outline: 2px solid var(--ring);
     outline-offset: 2px;
   }
+  a,
+  button,
+  summary,
+  [role="switch"],
+  [role="radio"] {
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+  }
   ::selection {
     background: color-mix(in srgb, var(--secondary) 45%, transparent);
   }
 }
 
-@theme {
-  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
-}
-
+/* Entrances: short rise with a strong ease-out. */
 @keyframes rise {
   from {
     opacity: 0;
@@ -231,12 +248,81 @@
   }
 }
 
+/* Soft grow-in (chips, bubbles, status swaps) — never from scale 0. */
+@keyframes pop {
+  from {
+    opacity: 0;
+    transform: translateY(6px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* Wrong input: a short sideways shake. */
+@keyframes shake {
+  0%,
+  100% {
+    transform: none;
+  }
+  20%,
+  60% {
+    transform: translateX(-6px);
+  }
+  40%,
+  80% {
+    transform: translateX(6px);
+  }
+}
+
+/* Bottom sheets: up on the drawer curve; out faster. */
+@keyframes sheet-in {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: none;
+  }
+}
+
+@keyframes sheet-out {
+  from {
+    opacity: 1;
+    transform: none;
+  }
+  to {
+    opacity: 0;
+    transform: translateY(40%);
+  }
+}
+
 @keyframes fade-in {
   from {
     opacity: 0;
   }
 }
 
+/* Icon swap (copy → copied): in from slightly small. */
+@keyframes icon-in {
+  from {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+}
+
+/* Code boxes: the caret in the empty box blinks like a text field's. */
+@keyframes caret-blink {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0;
+  }
+}
+
+/* Stall radar and listening mic: ring spreads and fades. */
 @keyframes radar {
   from {
     opacity: 0.7;
@@ -258,6 +344,21 @@
   }
 }
 
+/* A number changing: the new value slides in from the way it moved. */
+@keyframes tick-up {
+  from {
+    opacity: 0;
+    transform: translateY(35%);
+  }
+}
+
+@keyframes tick-down {
+  from {
+    opacity: 0;
+    transform: translateY(-35%);
+  }
+}
+
 /* Menu scan: a highlight band sweeps down the photo and back. */
 @keyframes scan {
   from {
@@ -268,7 +369,16 @@
   }
 }
 
+/*
+ * Reduced motion: movement goes, fades and colour stay. Moving keyframes become fades.
+ */
 @media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    transition-property: color, background-color, border-color, opacity !important;
+  }
   @keyframes scan {
     from,
     to {
@@ -278,6 +388,47 @@
   @keyframes rise {
     from {
       opacity: 0;
+    }
+  }
+  @keyframes pop {
+    from {
+      opacity: 0;
+    }
+  }
+  @keyframes icon-in {
+    from {
+      opacity: 0;
+    }
+  }
+  @keyframes sheet-in {
+    from {
+      opacity: 0;
+    }
+  }
+  @keyframes sheet-out {
+    to {
+      opacity: 0;
+    }
+  }
+  @keyframes tick-up {
+    from {
+      opacity: 0;
+    }
+  }
+  @keyframes tick-down {
+    from {
+      opacity: 0;
+    }
+  }
+  @keyframes shake {
+    from {
+      opacity: 1;
+    }
+  }
+  @keyframes caret-blink {
+    from,
+    to {
+      opacity: 1;
     }
   }
   @keyframes radar {

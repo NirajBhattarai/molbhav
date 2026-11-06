@@ -374,7 +374,7 @@ function WantSheet({ onClose }: { onClose: () => void }) {
         </div>
 
         {heard && heard.items.length > 0 && (
-          <div className="grid animate-[rise_200ms_var(--ease-out)_both] gap-2.5 rounded-xl border border-border p-3">
+          <div className="grid animate-[pop_250ms_var(--ease-out)_both] gap-2.5 rounded-xl border border-border p-3">
             <p className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">
               {t("Your agent heard")}
             </p>

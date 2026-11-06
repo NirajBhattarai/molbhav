@@ -83,7 +83,7 @@ export function Sheet({
       <div
         aria-hidden
         onClick={dismissible ? onClose : undefined}
-        className="absolute inset-0 animate-[fade-in_200ms_ease-out] bg-black/50 backdrop-blur-[2px]"
+        className="absolute inset-0 animate-[fade-in_200ms_var(--ease-out)] bg-black/45 backdrop-blur-[2px]"
       />
       <div
         ref={panel}
@@ -92,7 +92,7 @@ export function Sheet({
         aria-labelledby={titleId}
         aria-describedby={description ? descId : undefined}
         tabIndex={-1}
-        className="relative flex max-h-[92dvh] w-full max-w-md animate-[rise_260ms_var(--ease-out)] flex-col overflow-hidden rounded-t-3xl bg-card text-card-foreground shadow-2xl outline-none sm:rounded-3xl"
+        className="relative flex max-h-[92dvh] w-full max-w-md animate-[sheet-in_320ms_var(--ease-drawer)_both] flex-col overflow-hidden rounded-t-3xl bg-card text-card-foreground shadow-2xl outline-none sm:animate-[rise_260ms_var(--ease-out)_both] sm:rounded-3xl"
       >
         <span
           aria-hidden

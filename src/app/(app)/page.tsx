@@ -70,10 +70,14 @@ async function Stalls() {
   }
   return (
     <ul className="divide-y divide-border rounded-xl border border-border bg-card">
-      {stalls.map((s) => {
+      {stalls.map((s, i) => {
         const code = isLang(s.lang) ? s.lang : "en";
         return (
-          <li key={s.id} className={`flex items-center gap-3 p-4 ${s.open ? "" : "opacity-60"}`}>
+          <li
+            key={s.id}
+            className={`flex animate-[rise_300ms_var(--ease-out)_both] items-center gap-3 p-4 ${s.open ? "" : "opacity-60"}`}
+            style={{ animationDelay: `${Math.min(i, 6) * 40}ms` }}
+          >
             <span className="grid size-10 shrink-0 place-items-center rounded-full bg-muted font-display font-bold text-primary">
               {s.name[0]}
             </span>

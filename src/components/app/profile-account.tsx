@@ -33,7 +33,7 @@ export function ProfileAccount({ email }: { email: string }) {
     <>
       <section
         aria-label={t("Account")}
-        className="relative isolate grid gap-4 overflow-hidden rounded-3xl bg-hero p-5 text-hero-foreground"
+        className="relative isolate grid animate-[rise_400ms_var(--ease-out)] gap-4 overflow-hidden rounded-3xl bg-hero p-5 text-hero-foreground"
       >
         <BlockPrint className="pointer-events-none absolute inset-0 -z-10 text-secondary opacity-[0.08]" />
         <div className="flex items-center gap-4">

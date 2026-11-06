@@ -29,15 +29,19 @@ export function LanguagePicker({ className = "" }: { className?: string }) {
 
       {open && (
         <div
-          className="fixed inset-0 z-50 flex items-end justify-center bg-black/45 sm:items-center"
+          className="fixed inset-0 z-50 flex items-end justify-center sm:items-center"
           onClick={() => setOpen(false)}
           onKeyDown={(e) => e.key === "Escape" && setOpen(false)}
         >
           <div
+            aria-hidden
+            className="absolute inset-0 animate-[fade-in_200ms_var(--ease-out)] bg-black/45"
+          />
+          <div
             role="dialog"
             aria-modal="true"
             aria-labelledby="app-lang-title"
-            className="m-0 max-h-[92dvh] w-full max-w-md animate-[rise_240ms_var(--ease-out)] overflow-y-auto rounded-t-3xl bg-card text-card-foreground sm:rounded-3xl"
+            className="relative m-0 max-h-[92dvh] w-full max-w-md animate-[sheet-in_320ms_var(--ease-drawer)_both] overflow-y-auto rounded-t-3xl bg-card text-card-foreground sm:animate-[rise_240ms_var(--ease-out)_both] sm:rounded-3xl"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="px-6 pt-6 text-left">
