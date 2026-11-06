@@ -1,9 +1,10 @@
 """
-Builds Molbhav web SVG logo assets from one geometry (kept in step with
+Builds Molbhav web + iOS logo assets from one geometry (kept in step with
 src/components/brand/logo.tsx).
 
 Usage: python3 scripts/logo/generate.py <out_dir>
-Then copy web/icon.svg → src/app/icon.svg and brand/ → public/brand/.
+Then:  node scripts/logo/raster.mjs <out_dir>
+Copy web/ → src/app/, brand/ → public/brand/, ios/ → Xcode asset catalog.
 """
 import os
 import sys
@@ -50,6 +51,18 @@ write(f"{OUT}/brand/molbhav-mark.svg", svg(48, 36, mark(24, 18, 1, left="#2b3a8f
 write(
     f"{OUT}/brand/molbhav-mark-dark.svg",
     svg(48, 36, mark(24, 18, 1, left=WHITE, right="#fbbf24", lens="#10b981", tick="#10132a")),
+)
+
+# App Store / Xcode: 1024×1024 opaque (no transparency, no rounded corners — iOS masks).
+write(
+    f"{OUT}/ios/AppIcon-1024.svg",
+    svg(1024, 1024, f'<rect width="1024" height="1024" fill="{INDIGO}"/>' + mark(512, 512, 14)),
+)
+
+# Launch splash: deep indigo field, mark centred (2732 covers @3x iPad Pro).
+write(
+    f"{OUT}/ios/splash-2732.svg",
+    svg(2732, 2732, f'<rect width="2732" height="2732" fill="{INDIGO}"/>' + mark(1366, 1366, 18)),
 )
 
 print("ok")
