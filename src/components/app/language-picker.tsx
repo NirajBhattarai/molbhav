@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { Check, Languages } from "lucide-react";
 import { focusRing, pressable } from "@/components/ui/styles";
-import { setLang, useLang } from "@/lib/app-lang";
+import { setLang, useLang, useT } from "@/lib/i18n";
 import { LANG, LANGS } from "@/lib/languages";
 
 /**
@@ -12,6 +12,7 @@ import { LANG, LANGS } from "@/lib/languages";
  */
 export function LanguagePicker({ className = "" }: { className?: string }) {
   const lang = useLang();
+  const t = useT();
   const [open, setOpen] = useState(false);
 
   return (
@@ -19,7 +20,7 @@ export function LanguagePicker({ className = "" }: { className?: string }) {
       <button
         type="button"
         onClick={() => setOpen(true)}
-        aria-label={`Language: ${LANG[lang].own}`}
+        aria-label={`${t("Language")}: ${LANG[lang].own}`}
         className={`inline-flex h-11 shrink-0 items-center gap-2 rounded-full px-4 text-sm font-medium whitespace-nowrap transition-[transform,background-color] duration-150 active:scale-95 ${focusRing} ${className}`}
       >
         <Languages className="size-4" aria-hidden />
@@ -41,10 +42,10 @@ export function LanguagePicker({ className = "" }: { className?: string }) {
           >
             <div className="px-6 pt-6 text-left">
               <h2 id="app-lang-title" className="font-display text-xl font-bold">
-                App language
+                {t("App language")}
               </h2>
               <p className="mt-1 text-sm text-muted-foreground">
-                Stalls still talk to you in their own language. Your agent translates.
+                {t("Stalls still talk to you in their own language. Your agent translates.")}
               </p>
             </div>
             <ul className="grid gap-1 overflow-y-auto px-4 pt-4 pb-[max(1.5rem,env(safe-area-inset-bottom))]">

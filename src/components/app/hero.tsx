@@ -2,6 +2,7 @@
 
 import { useId, type ReactNode } from "react";
 import { BlockPrint } from "@/components/brand/block-print";
+import { useT, type Msg } from "@/lib/i18n";
 
 export function HeroCard({
   children,
@@ -99,17 +100,18 @@ export function StallStatusControl({
   disabled?: boolean;
   pauseSecondsLeft?: number;
 }) {
+  const t = useT();
   const hintId = useId();
-  const options = [
-    { id: "open" as const, label: "Open" },
-    { id: "paused" as const, label: "Paused" },
-    { id: "closed" as const, label: "Closed" },
+  const options: { id: "open" | "paused" | "closed"; label: Msg }[] = [
+    { id: "open", label: "Open" },
+    { id: "paused", label: "Paused" },
+    { id: "closed", label: "Closed" },
   ];
-  const title = status === "open" ? "Open for buyers" : status === "paused" ? "Paused" : "Closed";
+  const title =
+    status === "open" ? t("Open for buyers") : status === "paused" ? t("Paused") : t("Closed");
+  const mins = Math.max(1, Math.ceil(pauseSecondsLeft / 60));
   const pauseHint =
-    status === "paused" && pauseSecondsLeft > 0
-      ? `Back in ${Math.max(1, Math.ceil(pauseSecondsLeft / 60))} min.`
-      : null;
+    status === "paused" && pauseSecondsLeft > 0 ? t("Back in {n} min", { n: mins }) : null;
 
   return (
     <div className="grid gap-2">
@@ -145,7 +147,7 @@ export function StallStatusControl({
       </div>
       <div
         role="radiogroup"
-        aria-label="Stall status"
+        aria-label={t("Stall status")}
         aria-describedby={hintId}
         className="grid grid-cols-3 gap-1.5"
       >
@@ -169,7 +171,7 @@ export function StallStatusControl({
                   : "bg-hero-foreground/[0.08] text-hero-foreground/80 hover:bg-hero-foreground/[0.14]"
               }`}
             >
-              {opt.label}
+              {t(opt.label)}
             </button>
           );
         })}

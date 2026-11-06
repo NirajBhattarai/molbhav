@@ -6,7 +6,8 @@ import { Screen } from "@/components/app/screen";
 import { WantForm } from "@/components/app/want-form";
 import { BlockPrint } from "@/components/brand/block-print";
 import { Logo } from "@/components/brand/logo";
-import { LANG, isLang } from "@/lib/languages";
+import { T } from "@/lib/i18n";
+import { isLang } from "@/lib/languages";
 import { stallsNear } from "@/lib/server/shop";
 
 export default function Home() {
@@ -27,13 +28,15 @@ export default function Home() {
             <OpenNearYou />
           </Suspense>
           <h1 className="mt-3 font-display text-3xl leading-tight font-bold tracking-tight">
-            Say what you want. Your agent bargains for you.
+            <T msg="Say what you want. Your agent bargains for you." />
           </h1>
           <WantForm />
         </div>
       </section>
 
-      <h2 className="mt-8 mb-3 font-display text-lg font-semibold">Stalls near you</h2>
+      <h2 className="mt-8 mb-3 font-display text-lg font-semibold">
+        <T msg="Stalls near you" />
+      </h2>
       <Suspense fallback={<div className="h-72 animate-pulse rounded-xl bg-muted" />}>
         <Stalls />
       </Suspense>
@@ -50,7 +53,11 @@ async function OpenNearYou() {
         <span className="absolute inset-0 rounded-full bg-hero-success motion-safe:animate-[radar_1.6s_var(--ease-out)_infinite]" />
         <span className="relative size-2.5 rounded-full bg-hero-success" />
       </span>
-      {open} stall{open === 1 ? "" : "s"} open near you
+      {open === 1 ? (
+        <T msg="1 stall open near you" />
+      ) : (
+        <T msg="{n} stalls open near you" vars={{ n: open }} />
+      )}
     </p>
   );
 }
@@ -61,14 +68,14 @@ async function Stalls() {
   if (!stalls.length) {
     return (
       <p className="rounded-xl border border-border bg-card p-4 text-sm text-muted-foreground">
-        No stalls are set up yet. When shopkeepers open, they’ll show up here.
+        <T msg="No stalls are set up yet. When shopkeepers open, they’ll show up here." />
       </p>
     );
   }
   return (
     <ul className="divide-y divide-border rounded-xl border border-border bg-card">
       {stalls.map((s) => {
-        const lang = isLang(s.lang) ? LANG[s.lang].english : s.lang;
+        const code = isLang(s.lang) ? s.lang : "en";
         return (
           <li key={s.id} className={`flex items-center gap-3 p-4 ${s.open ? "" : "opacity-60"}`}>
             <span className="grid size-10 shrink-0 place-items-center rounded-full bg-muted font-display font-bold text-primary">
@@ -77,7 +84,9 @@ async function Stalls() {
             <span className="min-w-0 flex-1">
               <span className="block truncate font-medium">{s.name}</span>
               <span className="block truncate text-sm text-muted-foreground">
-                {s.open ? "Open" : "Closed"} · Speaks {lang}
+                <T msg={s.open ? "Open" : "Closed"} />
+                {" · "}
+                <T msg="Speaks {language}" language={code} />
               </span>
             </span>
           </li>

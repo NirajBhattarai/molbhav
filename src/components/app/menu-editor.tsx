@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import { Field, MoneyInput, Sheet, fieldInput } from "@/components/ui/sheet";
 import { focusRing, outlineButton, primaryButton } from "@/components/ui/styles";
+import { useT } from "@/lib/i18n";
 import { menuKey } from "@/lib/menu";
 import { shrinkPhoto } from "@/lib/photo";
 import type { ShopItem } from "@/lib/server/shop";
@@ -31,12 +32,13 @@ import {
 
 const inr = (n: number) => `₹${n.toLocaleString("en-IN")}`;
 const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
-const SCAN_ERROR = "Couldn’t read that photo. Try a clearer one, or add items by hand.";
+const SCAN_ERROR = "Couldn't read that photo. Try a clearer one, or add items by hand.";
 
 type Notice = { tone: "success" | "error"; text: string };
 
 /** The stall's menu: printed-menu list, add by hand, or scan/upload a photo and review it. */
 export function MenuSection({ items, canReadMenu }: { items: ShopItem[]; canReadMenu: boolean }) {
+  const t = useT();
   const [editing, setEditing] = useState<ShopItem | "new" | null>(null);
   const [review, setReview] = useState<ScannedMenuItem[] | null>(null);
   const [scanPreview, setScanPreview] = useState<string | null>(null);
@@ -62,7 +64,7 @@ export function MenuSection({ items, canReadMenu }: { items: ShopItem[]; canRead
       if ("error" in res) setNotice({ tone: "error", text: res.error });
       else setReview(res.items);
     } catch {
-      setNotice({ tone: "error", text: SCAN_ERROR });
+      setNotice({ tone: "error", text: t(SCAN_ERROR) });
     } finally {
       setScanPreview(null);
       URL.revokeObjectURL(preview);
@@ -81,19 +83,19 @@ export function MenuSection({ items, canReadMenu }: { items: ShopItem[]; canRead
       <header className="flex items-end justify-between gap-3 px-4 pt-4 pb-3">
         <div className="min-w-0">
           <p className="text-xs font-semibold tracking-[0.08em] text-muted-foreground uppercase">
-            Menu
+            {t("Menu")}
           </p>
           <h2
             id="menu-title"
             tabIndex={-1}
             className="font-display text-xl font-bold tracking-tight outline-none"
           >
-            What you sell
+            {t("What you sell")}
           </h2>
         </div>
         {items.length > 0 && (
           <span className="shrink-0 rounded-full bg-muted px-2.5 py-1 text-xs font-semibold text-muted-foreground tabular-nums">
-            {plural(items.length, "item")}
+            {t(items.length === 1 ? "{n} item" : "{n} items", { n: items.length })}
           </span>
         )}
       </header>
@@ -147,12 +149,12 @@ export function MenuSection({ items, canReadMenu }: { items: ShopItem[]; canRead
             className={outlineButton}
           >
             <Plus className="size-5" aria-hidden />
-            Add item
+            {t("Add item")}
           </button>
           {canReadMenu && (
             <button type="button" onClick={pickPhoto} className={outlineButton}>
               <Camera className="size-5" aria-hidden />
-              Scan menu
+              {t("Scan menu")}
             </button>
           )}
         </div>
@@ -382,22 +384,25 @@ function EmptyMenu({
   onScan: () => void;
   onAdd: () => void;
 }) {
+  const t = useT();
   return (
     <div className="border-t border-border px-4 pt-6 pb-4 text-center">
       <span className="mx-auto flex size-14 items-center justify-center rounded-2xl bg-secondary/20 text-foreground">
         <ReceiptText className="size-7" aria-hidden />
       </span>
-      <h3 className="mt-3 font-display text-lg font-semibold">Add your menu</h3>
+      <h3 className="mt-3 font-display text-lg font-semibold">{t("Add your menu")}</h3>
       <p className="mx-auto mt-1 max-w-xs text-sm text-pretty text-muted-foreground">
         {canScan
-          ? "Take or upload a photo of your menu or price board. We’ll read every item and price for you to check."
-          : "Add each thing you sell with the price you ask and the lowest you’ll take."}
+          ? t(
+              "Take or upload a photo of your menu or price board. We’ll read every item and price for you to check.",
+            )
+          : t("Add each thing you sell with the price you ask and the lowest you’ll take.")}
       </p>
       <div className="mt-5 grid gap-2">
         {canScan && (
           <button type="button" onClick={onScan} className={`${primaryButton} w-full`}>
             <Camera className="size-5" aria-hidden />
-            Scan or upload menu
+            {t("Scan or upload menu")}
           </button>
         )}
         <button
@@ -406,7 +411,7 @@ function EmptyMenu({
           className={`${canScan ? outlineButton : primaryButton} w-full`}
         >
           <Plus className="size-5" aria-hidden />
-          {canScan ? "Add items by hand" : "Add your first item"}
+          {canScan ? t("Add items by hand") : t("Add your first item")}
         </button>
       </div>
     </div>
@@ -421,6 +426,7 @@ const CORNERS = [
 ];
 
 function ScanProgress({ preview }: { preview: string }) {
+  const t = useT();
   return (
     <div className="border-t border-border p-4">
       <div className="relative aspect-[4/3] overflow-hidden rounded-xl bg-muted">
@@ -441,9 +447,9 @@ function ScanProgress({ preview }: { preview: string }) {
           aria-hidden
         />
         <p className="text-sm">
-          <span className="font-semibold">Reading your menu…</span>{" "}
+          <span className="font-semibold">{t("Reading your menu…")}</span>{" "}
           <span className="text-muted-foreground">
-            Finding each item and its price. This usually takes 10–20 seconds.
+            {t("Finding each item and its price. This usually takes 10–20 seconds.")}
           </span>
         </p>
       </div>
@@ -452,6 +458,7 @@ function ScanProgress({ preview }: { preview: string }) {
 }
 
 function NoticeBar({ notice, onDismiss }: { notice: Notice; onDismiss: () => void }) {
+  const t = useT();
   const ok = notice.tone === "success";
   const Icon = ok ? Check : CircleAlert;
   return (
@@ -466,7 +473,7 @@ function NoticeBar({ notice, onDismiss }: { notice: Notice; onDismiss: () => voi
       <button
         type="button"
         onClick={onDismiss}
-        aria-label="Dismiss"
+        aria-label={t("Dismiss")}
         className={`-my-2 flex size-11 shrink-0 items-center justify-center rounded-lg hover:bg-current/10 ${focusRing}`}
       >
         <X className="size-4" aria-hidden />
