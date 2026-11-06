@@ -6,8 +6,6 @@ import {
   parseBearer,
 } from "@/lib/server/stall-device";
 
-export const runtime = "nodejs";
-
 /** Stall sign button press → save open/closed/paused for that agent. */
 export async function POST(req: Request) {
   const agentId = (req.headers.get("x-agent-id") ?? "").trim().toLowerCase();

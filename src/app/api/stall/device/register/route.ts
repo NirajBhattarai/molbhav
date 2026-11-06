@@ -1,8 +1,6 @@
 import { NextResponse } from "next/server";
 import { registerSignChip } from "@/lib/server/sign-claim";
 
-export const runtime = "nodejs";
-
 /** Stall sign → after Wi‑Fi: register chip, get a 6-digit claim code (or credentials if already claimed). */
 export async function POST(req: Request) {
   let body: { chipId?: unknown };
