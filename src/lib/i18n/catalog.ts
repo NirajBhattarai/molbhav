@@ -608,6 +608,18 @@ export const CATALOG = {
     es: "Tu billetera de Hedera aún no está lista. Abre tu perfil y vuelve a intentarlo.",
     fr: "Votre portefeuille Hedera n'est pas encore prêt. Ouvrez votre profil, puis réessayez.",
   },
+  "Your Hedera account {account} needs more testnet HBAR. Send some to it from portal.hedera.com/faucet, then try again.":
+    {
+      hi: "आपके Hedera खाते {account} में और testnet HBAR चाहिए। portal.hedera.com/faucet से इसमें भेजें, फिर दोबारा कोशिश करें।",
+      mr: "तुमच्या Hedera खात्यात {account} आणखी testnet HBAR हवे. portal.hedera.com/faucet वरून त्यात पाठवा, मग पुन्हा प्रयत्न करा.",
+      ta: "உங்கள் Hedera கணக்கு {account}-க்கு மேலும் testnet HBAR தேவை. portal.hedera.com/faucet-இலிருந்து அனுப்பி, மீண்டும் முயலுங்கள்.",
+      ne: "तपाईंको Hedera खाता {account} मा थप testnet HBAR चाहिन्छ। portal.hedera.com/faucet बाट यसमा पठाउनुहोस्, अनि फेरि प्रयास गर्नुहोस्।",
+      ja: "Hedera アカウント {account} の testnet HBAR が足りません。portal.hedera.com/faucet から送ってから、もう一度お試しください。",
+      ko: "Hedera 계정 {account}에 testnet HBAR가 더 필요해요. portal.hedera.com/faucet에서 보낸 뒤 다시 시도하세요.",
+      zh: "你的 Hedera 账户 {account} 需要更多测试网 HBAR。请从 portal.hedera.com/faucet 转入后再试。",
+      es: "Tu cuenta de Hedera {account} necesita más HBAR de testnet. Envíale desde portal.hedera.com/faucet y vuelve a intentarlo.",
+      fr: "Votre compte Hedera {account} a besoin de plus de HBAR testnet. Envoyez-en depuis portal.hedera.com/faucet, puis réessayez.",
+    },
   "Your Hedera wallet needs more testnet HBAR for this. Get some from portal.hedera.com/faucet, then try again.":
     {
       hi: "इसके लिए आपके Hedera वॉलेट में और टेस्टनेट HBAR चाहिए। portal.hedera.com/faucet से लें, फिर दोबारा कोशिश करें।",

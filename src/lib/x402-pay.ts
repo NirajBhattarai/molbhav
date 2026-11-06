@@ -2,7 +2,7 @@
 
 import { decodePaymentRequiredHeader, encodePaymentSignatureHeader } from "@x402/core/http";
 import type { PaymentPayload, PaymentRequired, PaymentRequirements } from "@x402/core/types";
-import { getMagic, type MolbhavMagic } from "@/lib/magic";
+import { getMagic, magicHederaAccount, mirrorNode, type MolbhavMagic } from "@/lib/magic";
 import { HEDERA_MAINNET, isHederaId } from "@/lib/x402";
 
 /*
@@ -17,14 +17,26 @@ export type PayError =
   | "Sign in again to pay."
   | "Your Hedera wallet isn't ready yet. Open your profile, then try again."
   | "Your Hedera wallet needs more testnet HBAR for this. Get some from portal.hedera.com/faucet, then try again."
+  | "Your Hedera account {account} needs more testnet HBAR. Send some to it from portal.hedera.com/faucet, then try again."
   | "Your wallet's signature didn't check out. Try again."
   | "The payment didn't go through.";
 
 export type PayOutcome =
   | { ok: true; transaction: string; amount: string }
-  | { ok: false; error: PayError; detail?: string };
+  | { ok: false; error: PayError; detail?: string; account?: string };
 
 class Unready extends Error {}
+
+/** The paying account holds less than the deal's price (checked before Magic signs). */
+class NoFunds extends Error {
+  constructor(
+    readonly account: string,
+    have: bigint,
+    need: bigint,
+  ) {
+    super(`${account} has ${have} tinybars, the deal needs ${need}`);
+  }
+}
 
 /** Testnet nodes the signed transfer may be submitted through (each gets its own signature). */
 const NODES = { testnet: [3, 4], mainnet: [3, 4] } as const;
@@ -54,36 +66,35 @@ const base64 = (bytes: Uint8Array) => {
 };
 
 /** The buyer's Hedera account id and public key from Magic. */
-async function magicAccount(m: MolbhavMagic, mirror: string) {
-  const info = await m.hedera.getPublicKey();
-  const der = typeof info === "string" ? info : info?.publicKeyDer;
-  if (!der) throw new Unready("no public key");
-  const { PublicKey } = await import("@hiero-ledger/sdk");
-  const publicKey = PublicKey.fromString(der); // DER or raw hex
-  let accountId = typeof info === "object" ? info?.accountId : undefined;
-  if (!isHederaId(accountId)) {
-    const res = await fetch(
-      `${mirror}/api/v1/accounts?account.publickey=${publicKey.toStringRaw()}`,
-    );
-    const found = res.ok ? ((await res.json()) as { accounts?: { account?: string }[] }) : null;
-    accountId = found?.accounts?.[0]?.account;
-  }
-  if (!isHederaId(accountId)) throw new Unready("no account id");
-  return { accountId, publicKey };
+async function magicAccount(m: MolbhavMagic, mainnet: boolean) {
+  const account = await magicHederaAccount(m, mainnet ? "mainnet" : "testnet");
+  if (!account) throw new Unready("no Hedera account on this Magic wallet");
+  return account;
+}
+
+/** Tinybars on an account, from the mirror node; null when it can't be read. */
+async function hbarBalance(mirror: string, account: string): Promise<bigint | null> {
+  const res = await fetch(`${mirror}/api/v1/accounts/${account}`).catch(() => null);
+  if (!res?.ok) return null;
+  const balance = ((await res.json()) as { balance?: { balance?: number } }).balance?.balance;
+  return typeof balance === "number" ? BigInt(balance) : null;
 }
 
 async function signedTransfer(m: MolbhavMagic, req: PaymentRequirements): Promise<string> {
   const mainnet = req.network === HEDERA_MAINNET;
-  const mirror = mainnet
-    ? "https://mainnet-public.mirrornode.hedera.com"
-    : "https://testnet.mirrornode.hedera.com";
+  const mirror = mirrorNode(mainnet ? "mainnet" : "testnet");
   const feePayer = (req.extra as { feePayer?: unknown }).feePayer;
   if (!isHederaId(feePayer)) throw new Error("The payment service sent no fee payer.");
 
   const [{ accountId, publicKey }, sdk] = await Promise.all([
-    magicAccount(m, mirror),
+    magicAccount(m, mainnet),
     import("@hiero-ledger/sdk"),
   ]);
+  if (req.asset === "0.0.0") {
+    const have = await hbarBalance(mirror, accountId);
+    if (have !== null && have < BigInt(req.amount))
+      throw new NoFunds(accountId, have, BigInt(req.amount));
+  }
   const { AccountId, Hbar, TokenId, TransactionId, TransferTransaction } = sdk;
   const amount = Number(req.amount);
   const payer = AccountId.fromString(accountId);
@@ -108,15 +119,15 @@ async function signedTransfer(m: MolbhavMagic, req: PaymentRequirements): Promis
 
 /** Why a payment failed, in words a buyer can act on. */
 function explain(reason: string | undefined, detail: string): PayError {
-  if (reason?.includes("preflight") || /INSUFFICIENT|balance|NOT_ASSOCIATED/i.test(detail))
+  if (/INSUFFICIENT|balance|NOT_ASSOCIATED/i.test(detail))
     return "Your Hedera wallet needs more testnet HBAR for this. Get some from portal.hedera.com/faucet, then try again.";
   if (reason?.includes("signature")) return "Your wallet's signature didn't check out. Try again.";
   return "The payment didn't go through.";
 }
 
-function failed(error: PayError, detail?: string): PayOutcome {
+function failed(error: PayError, detail?: string, account?: string): PayOutcome {
   if (detail) console.warn("x402 pay:", detail);
-  return { ok: false, error, detail };
+  return { ok: false, error, detail, account };
 }
 
 /** Pay one agreed deal; resolves when the facilitator has settled it on Hedera. */
@@ -161,6 +172,12 @@ export async function payDeal(bargainId: string, stallId: string): Promise<PayOu
     return { ok: true, transaction: body.transaction, amount: body.amount ?? accepted.amount };
   } catch (err) {
     const detail = err instanceof Error ? err.message : String(err);
+    if (err instanceof NoFunds)
+      return failed(
+        "Your Hedera account {account} needs more testnet HBAR. Send some to it from portal.hedera.com/faucet, then try again.",
+        detail,
+        err.account,
+      );
     if (err instanceof Unready)
       return failed(
         "Your Hedera wallet isn't ready yet. Open your profile, then try again.",
