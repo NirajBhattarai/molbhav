@@ -3,6 +3,7 @@ import { Suspense } from "react";
 import { HaggleChat } from "@/components/app/haggle-chat";
 import { autoOrderOf, autoOrderStep } from "@/lib/server/auto-order";
 import { me, myChat } from "@/lib/server/bargains";
+import { dealLogUrl } from "@/lib/server/hedera/deal-log";
 import { payingBreaks } from "@/lib/server/limits";
 
 async function ChatContent({ params }: { params: Promise<{ id: string; stallId: string }> }) {
@@ -26,6 +27,7 @@ async function ChatContent({ params }: { params: Promise<{ id: string; stallId: 
       overLimit={overLimit}
       autoOrder={order?.autoOrder ?? false}
       auto={order?.auto ?? null}
+      dealLog={dealLogUrl()}
     />
   );
 }

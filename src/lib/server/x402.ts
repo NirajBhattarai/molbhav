@@ -4,6 +4,7 @@ import type { PaymentPayload, PaymentRequired } from "@x402/core/types";
 import { ensName } from "@/lib/ens";
 import { appBase } from "@/lib/server/a2a/client";
 import { orderPaid } from "@/lib/server/auto-order";
+import { logDealPaid } from "@/lib/server/hedera/deal-log";
 import { wroteChat } from "@/lib/server/chat-cache";
 import { query } from "@/lib/server/db";
 import { hederaAddressFromEns } from "@/lib/server/ens";
@@ -255,6 +256,11 @@ export async function settleDeal(
   if (paid) {
     await wroteChat(bargainId, stallId, paid.version);
     await orderPaid(bargainId, stallId, settled.transaction);
+    logDealPaid(bargainId, stallId, {
+      payTo: requirements.payTo,
+      amount: requirements.amount,
+      payTx: settled.transaction,
+    });
   }
   return {
     ok: true,

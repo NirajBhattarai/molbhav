@@ -21,7 +21,8 @@
     "db:seed-stalls": "node scripts/seed-stalls.mjs",
     "ens:wallet": "node scripts/ens-wallet.mjs",
     "ens:setup": "node scripts/ens-setup.mjs",
-    "ens:link": "node scripts/ens-link.mjs"
+    "ens:link": "node scripts/ens-link.mjs",
+    "hcs:topic": "node scripts/hcs-topic.mjs"
   },
   "dependencies": {
     "@capacitor-community/bluetooth-le": "^8.3.0",

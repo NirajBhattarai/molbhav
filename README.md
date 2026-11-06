@@ -34,6 +34,7 @@ Live: [molbhav-eta.vercel.app](https://molbhav-eta.vercel.app)
 | **ENS names (ENSv2)**    | Each stall agent gets `<label>.molbhav.eth` on Sepolia, holding its Agent Card URL (ENSIP-26), its context, and the owner's addresses, Hedera included (ENSIP-11). An agent that knows only the name can find the stall, bargain with it and know where to pay it. A new shop gets one when it is published. | [docs/ens.md](docs/ens.md)                                     |
 | **Bluetooth stall sign** | An ESP32 at the stall advertises its agent id (company `0x0BAB`) and its ENS label (`mohd-soyeb-khan`) as the local name. The iPhone app adds `.molbhav.eth` and asks those stalls first.                                                                                                                    | [firmware/stall-sign/BEACON.md](firmware/stall-sign/BEACON.md) |
 | **x402 payments**        | Each agreed deal is an x402 resource (`exact` scheme, `hedera:testnet`). It answers 402 with the price in HBAR, paid to the Hedera address on the stall's ENS name. The facilitator verifies, pays the fee and settles.                                                                                      | [docs/x402.md](docs/x402.md)                                   |
+| **Deal log (HCS)**       | Every agreed and paid deal is posted as JSON to a Hedera Consensus Service topic only the market can write to: stall, ENS name, item, price and the x402 transaction. No buyer identity. The chat links it on HashScan.                                                                                      | [docs/hcs.md](docs/hcs.md)                                     |
 | **Wallet**               | Sign-in is an email code via Magic, which gives every user a Hedera wallet. The profile shows the account that pays (`0.0.x`) and its HBAR balance. Molbhav never sees keys.                                                                                                                                 | [docs/x402.md](docs/x402.md#setup)                             |
 | **iPhone app**           | A Capacitor shell around the web app that adds Bluetooth scanning.                                                                                                                                                                                                                                           | [docs/mobile.md](docs/mobile.md)                               |
 
@@ -62,6 +63,7 @@ the pay button.
 - Postgres on Neon, Redis on Vercel (Redis Cloud)
 - Gemini for the agents' bargaining
 - Magic (email sign-in, Hedera wallet), `@hiero-ledger/sdk`
+- Hedera Consensus Service for the deal log
 - x402: `@x402/core`, `@x402/hedera`, facilitator [x402.org](https://x402.org/facilitator)
 - ENSv2 on Sepolia with `viem`
 - Capacitor (iPhone), ESP32 with NimBLE and PlatformIO (stall sign)
@@ -81,15 +83,16 @@ then go to `/shop`.
 
 ### Environment
 
-| Env                                                     | Needed for                                            |
-| ------------------------------------------------------- | ----------------------------------------------------- |
-| `DATABASE_URL`, `SESSION_SECRET`                        | Everything                                            |
-| `NEXT_PUBLIC_MAGIC_PUBLISHABLE_KEY`, `MAGIC_SECRET_KEY` | Sign-in and the Hedera wallet                         |
-| `NEXT_PUBLIC_HEDERA_NETWORK`                            | `testnet` (default) or `mainnet`                      |
-| `GEMINI_API_KEY`                                        | The bargaining agents                                 |
-| `REDIS_URL`                                             | Caches and locks (optional, but use it in production) |
-| `ENS_REGISTRAR_KEY`, `ENS_REGISTRY`, `ENS_PARENT`       | ENS names for stalls (optional)                       |
-| `X402_FACILITATOR_URL`, `X402_INR_PER_HBAR`             | x402 payments (defaults work on testnet)              |
+| Env                                                              | Needed for                                            |
+| ---------------------------------------------------------------- | ----------------------------------------------------- |
+| `DATABASE_URL`, `SESSION_SECRET`                                 | Everything                                            |
+| `NEXT_PUBLIC_MAGIC_PUBLISHABLE_KEY`, `MAGIC_SECRET_KEY`          | Sign-in and the Hedera wallet                         |
+| `NEXT_PUBLIC_HEDERA_NETWORK`                                     | `testnet` (default) or `mainnet`                      |
+| `GEMINI_API_KEY`                                                 | The bargaining agents                                 |
+| `REDIS_URL`                                                      | Caches and locks (optional, but use it in production) |
+| `ENS_REGISTRAR_KEY`, `ENS_REGISTRY`, `ENS_PARENT`                | ENS names for stalls (optional)                       |
+| `X402_FACILITATOR_URL`, `X402_INR_PER_HBAR`                      | x402 payments (defaults work on testnet)              |
+| `HEDERA_OPERATOR_ID`, `HEDERA_OPERATOR_KEY`, `HEDERA_DEAL_TOPIC` | The deal log on HCS (optional)                        |
 
 [.env.example](.env.example) explains each one.
 
@@ -127,6 +130,7 @@ command `set ens <label>`.
 | `npm run ens:wallet`       | Create the ENS registrar wallet        |
 | `npm run ens:setup`        | Register the parent ENS name           |
 | `npm run ens:link`         | Let the registrar mint subnames        |
+| `npm run hcs:topic`        | Create the HCS deal log topic          |
 | `npm run ios:dev`          | Sync the iPhone app to your dev server |
 | `npm run ios:open`         | Open the iPhone app in Xcode           |
 

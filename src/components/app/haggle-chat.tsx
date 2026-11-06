@@ -196,6 +196,7 @@ export function HaggleChat({
   overLimit = null,
   autoOrder = false,
   auto = null,
+  dealLog = null,
 }: {
   chat: ChatView;
   /** When set, the agreed price would break the buyer's spending limits. */
@@ -204,6 +205,8 @@ export function HaggleChat({
   autoOrder?: boolean;
   /** What the buyer's agent decided about paying (shown here when it's this stall's deal). */
   auto?: AutoOrder | null;
+  /** HashScan page of the Hedera topic where agreed and paid deals are logged. */
+  dealLog?: string | null;
 }) {
   const t = useT();
   const format = useFormat();
@@ -532,6 +535,17 @@ export function HaggleChat({
               ? t("Paid {amount} HBAR on Hedera · HashScan", { amount: formatHbar(hbar) })
               : t("Paid on Hedera · HashScan")}
             <ExternalLink className="size-3.5" aria-hidden />
+          </a>
+        )}
+        {(chat.status === "agreed" || chat.status === "paid") && dealLog && (
+          <a
+            href={dealLog}
+            target="_blank"
+            rel="noreferrer"
+            className={`${focusRing} flex items-center justify-center gap-1.5 rounded-md text-xs text-muted-foreground underline-offset-2 hover:underline`}
+          >
+            {t("Deal logged on Hedera · HashScan")}
+            <ExternalLink className="size-3" aria-hidden />
           </a>
         )}
 

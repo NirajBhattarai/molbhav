@@ -321,6 +321,17 @@ export const CATALOG = {
     es: "Trato cerrado",
     fr: "Marché conclu",
   },
+  "Deal logged on Hedera · HashScan": {
+    hi: "सौदा Hedera पर दर्ज · HashScan",
+    mr: "व्यवहार Hedera वर नोंदवला · HashScan",
+    ta: "ஒப்பந்தம் Hedera-வில் பதிவானது · HashScan",
+    ne: "सम्झौता Hedera मा दर्ता भयो · HashScan",
+    ja: "取引は Hedera に記録済み · HashScan",
+    ko: "거래가 Hedera에 기록됨 · HashScan",
+    zh: "交易已记录在 Hedera · HashScan",
+    es: "Trato registrado en Hedera · HashScan",
+    fr: "Accord enregistré sur Hedera · HashScan",
+  },
   "Deal ₹76 · you saved ₹14": {
     hi: "सौदा ₹76 · आपने ₹14 बचाए",
     mr: "सौदा ₹76 · तुम्ही ₹14 वाचवले",

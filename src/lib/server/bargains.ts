@@ -3,6 +3,7 @@ import type { AutoOrder } from "@/lib/limits";
 import { HANDED_OFF, OVER_BUDGET } from "@/lib/offer-status";
 import { fillChat, readChat, wroteChat, type CachedChat } from "@/lib/server/chat-cache";
 import { query } from "@/lib/server/db";
+import { logDealAgreed } from "@/lib/server/hedera/deal-log";
 import { ensureUser, me, type Me } from "@/lib/server/shop";
 import type { Lang } from "@/lib/languages";
 import type { OfferStatus } from "@/lib/offer-status";
@@ -717,6 +718,7 @@ export async function agreeOfferFor(
   if (!won.length) return null;
   const price = won[0].current;
   await wroteChat(bargainId, stallId, won[0].version);
+  logDealAgreed(bargainId, stallId, price);
 
   await addLine({
     bargainId,
