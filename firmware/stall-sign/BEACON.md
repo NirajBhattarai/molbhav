@@ -42,8 +42,9 @@ The byte changes the moment a button on the sign is pressed, or when the server 
 
 ## Rules
 
-- **The agent id is the key.** The name and the manufacturer data carry the same agent id; read the
-  manufacturer data first and fall back to the name.
+- **The agent id is the key.** The name and the manufacturer data carry the same agent id. Phones read
+  the manufacturer data only: the name has no status byte, so a sign heard by name alone is never
+  offered (it may be closed or paused).
 - **A sign with no agent id doesn't broadcast.** New chips stay silent until they are set up for a shop,
   so a phone never sees a wrong or placeholder stall.
 - **Never change the prefix or company id per shop.** Only the agent id differs between signs.
