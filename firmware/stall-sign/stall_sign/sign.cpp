@@ -81,6 +81,10 @@ WiFiManagerParameter fieldToken("token", "Device token (advanced)", "", 100);
 Shop shop;
 String apName;   // setup hotspot, e.g. Molbhav-Setup-1170
 String chipId;   // MAC hex for claim register
+// Random secret proving this is the same chip when it claims (anyone nearby can learn the MAC).
+// Kept in the "sign" namespace, so reset-shop doesn't change it; made once Wi-Fi is up, because
+// the hardware random generator is only truly random while the radio runs.
+String claimSecret;
 String claimCode;  // 6 digits shown while waiting for the shop app
 uint32_t lastClaimTry = 0;
 
@@ -482,7 +486,8 @@ void pressPause() {
 
 // ---------- Server sync ----------
 
-bool request(const char* method, const char* path, const String& body, String& out) {
+bool request(const char* method, const char* path, const String& body, String& out,
+             const String& secret = "") {
   if (!serverEnabled() || WiFi.status() != WL_CONNECTED) return false;
 
   String url = shop.server + path;
@@ -503,6 +508,7 @@ bool request(const char* method, const char* path, const String& body, String& o
 
   if (shop.token.length()) http.addHeader("Authorization", "Bearer " + shop.token);
   http.addHeader("X-Agent-Id", shop.agentId);
+  if (secret.length()) http.addHeader("X-Claim-Secret", secret);
 
   int code;
   if (strcmp(method, "POST") == 0) {
@@ -680,11 +686,23 @@ void setupWifi(bool openSetup) {
   if (portalOpen) Serial.printf("Setup page: join Wi-Fi %s (password %s), open 192.168.4.1\n", apName.c_str(), SETUP_AP_PASSWORD);
 }
 
+// 32 hex characters from the hardware random generator, made once and kept in flash.
+void ensureClaimSecret() {
+  if (claimSecret.length() == 32) return;
+  claimSecret = prefs.getString("claimkey", "");
+  if (claimSecret.length() == 32) return;
+  char hex[33];
+  for (int i = 0; i < 4; i++) snprintf(hex + i * 8, 9, "%08lx", (unsigned long)esp_random());
+  claimSecret = hex;
+  prefs.putString("claimkey", claimSecret);
+}
+
 // After Wi‑Fi: ask Molbhav for a 6-digit code (or credentials if already claimed).
 void serviceClaim() {
   if (configured() || !serverEnabled() || WiFi.status() != WL_CONNECTED) return;
   if (lastClaimTry && millis() - lastClaimTry < 5000) return;
   lastClaimTry = millis();
+  ensureClaimSecret();
 
   String path = String(CLAIM_STATUS_PATH) + "?chip=" + chipId;
   String out;
@@ -694,8 +712,8 @@ void serviceClaim() {
     doc["chipId"] = chipId;
     String body;
     serializeJson(doc, body);
-    if (!request("POST", REGISTER_PATH, body, out)) return;
-  } else if (!request("GET", path.c_str(), "", out)) {
+    if (!request("POST", REGISTER_PATH, body, out, claimSecret)) return;
+  } else if (!request("GET", path.c_str(), "", out, claimSecret)) {
     return;
   }
 

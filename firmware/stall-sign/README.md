@@ -206,6 +206,11 @@ The app implements these routes. Fresh chips default `SERVER_BASE_URL` to `https
 After Wi‑Fi, the sign registers and shows a claim code; the shop app links it and the server returns the
 device token automatically. USB `set token` / claim pack still work for advanced setups.
 
+The chip id in those requests is the board's factory MAC address, which anyone near the sign can work
+out, so it isn't proof on its own. On first use the sign makes a random 32-character secret, keeps it in
+flash (`reset-shop` leaves it alone), and sends it as `X-Claim-Secret` to `register` and `claim-status`.
+The server stores only its SHA-256 and gives the claim code and device token only to that secret.
+
 ## Troubleshooting
 
 | Problem                                    | Fix                                                                                                                                                                                 |
