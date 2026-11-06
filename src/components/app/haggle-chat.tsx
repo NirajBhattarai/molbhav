@@ -196,7 +196,7 @@ export function HaggleChat({ chat }: { chat: ChatView }) {
   const [busy, start] = useTransition();
   const [paying, startPay] = useTransition();
   const [payingUsdc, startUsdc] = useTransition();
-  const [payError, setPayError] = useState<PayError | null>(null);
+  const [payError, setPayError] = useState<{ error: PayError; account?: string } | null>(null);
   const router = useRouter();
   const hbar = chat.hbar ?? null;
   const paidTx = chat.paidTx ?? null;
@@ -205,7 +205,7 @@ export function HaggleChat({ chat }: { chat: ChatView }) {
       setPayError(null);
       const paid = await payDeal(chat.bargainId, chat.stall.id);
       if (paid.ok) router.refresh();
-      else setPayError(paid.error);
+      else setPayError({ error: paid.error, account: paid.account });
     });
   const log = useRef<HTMLDivElement>(null);
   const end = useRef<HTMLDivElement>(null);
@@ -454,7 +454,7 @@ export function HaggleChat({ chat }: { chat: ChatView }) {
             )}
             {payError && (
               <p role="alert" className="text-center text-sm text-destructive">
-                {t(payError)}
+                {t(payError.error, { account: payError.account ?? "" })}
               </p>
             )}
             <button

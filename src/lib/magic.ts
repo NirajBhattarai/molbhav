@@ -1,6 +1,7 @@
 "use client";
 
 import type { Magic as MagicType } from "magic-sdk";
+import { isHederaId } from "@/lib/x402";
 
 export type HederaNetwork = "testnet" | "mainnet";
 
@@ -30,6 +31,36 @@ export function hashscanAccountUrl(address: string, network: HederaNetwork = hed
   return `https://hashscan.io/${net}/account/${encodeURIComponent(address)}`;
 }
 
+export const mirrorNode = (network: HederaNetwork = hederaNetwork()) =>
+  network === "mainnet"
+    ? "https://mainnet-public.mirrornode.hedera.com"
+    : "https://testnet.mirrornode.hedera.com";
+
+/**
+ * The Hedera account Magic signs for (`0.0.x`) and its public key. This is the account that pays,
+ * and it is not the EVM address in `getInfo().wallets`: that one is a different (secp256k1) key.
+ * Null until Magic has a Hedera account for this sign-in.
+ */
+export async function magicHederaAccount(
+  m: MolbhavMagic,
+  network: HederaNetwork = hederaNetwork(),
+) {
+  const info = await m.hedera.getPublicKey();
+  const der = typeof info === "string" ? info : info?.publicKeyDer;
+  if (!der) return null;
+  const { PublicKey } = await import("@hiero-ledger/sdk");
+  const publicKey = PublicKey.fromString(der); // DER or raw hex
+  let accountId = typeof info === "object" ? info?.accountId : undefined;
+  if (!isHederaId(accountId)) {
+    const res = await fetch(
+      `${mirrorNode(network)}/api/v1/accounts?account.publickey=${publicKey.toStringRaw()}`,
+    );
+    const found = res.ok ? ((await res.json()) as { accounts?: { account?: string }[] }) : null;
+    accountId = found?.accounts?.[0]?.account;
+  }
+  return isHederaId(accountId) ? { accountId, publicKey } : null;
+}
+
 let magic: Promise<MolbhavMagic> | null = null;
 
 /** One Magic per page, loaded only when someone signs in, out, or reads their Hedera wallet. */
@@ -50,13 +81,15 @@ export function getMagic(): Promise<MolbhavMagic> {
 }
 
 /**
- * Hedera wallet address (EVM alias, 0x…) from Magic, once the user is signed in there.
- * Falls back to ethereum if Hedera isn't on the wallet yet.
+ * The buyer's Hedera wallet as shown on the profile: the account Magic pays from (`0.0.x`), so that
+ * is the one people fund at the faucet. Falls back to the address in Magic's user info.
  */
 export async function hederaWalletAddress(): Promise<string | null> {
   if (!key) return null;
   const m = await getMagic().catch(() => null);
   if (!m || !(await m.user.isLoggedIn().catch(() => false))) return null;
+  const account = await magicHederaAccount(m).catch(() => null);
+  if (account) return account.accountId;
   const info = await m.user.getInfo().catch(() => null);
   const wallets = info?.wallets as
     { hedera?: { publicAddress?: string }; ethereum?: { publicAddress?: string } } | undefined;

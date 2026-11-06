@@ -193,6 +193,13 @@ export async function settleDeal(
   const client = facilitator();
   const verified = await client.verify(payment, requirements);
   if (!verified.isValid) {
+    console.warn("x402 verify rejected", bargainId, stallId, {
+      reason: verified.invalidReason,
+      message: verified.invalidMessage,
+      payer: verified.payer,
+      payTo: requirements.payTo,
+      amount: requirements.amount,
+    });
     return {
       ok: false,
       status: 402,
@@ -202,6 +209,11 @@ export async function settleDeal(
   }
   const settled = await client.settle(payment, requirements);
   if (!settled.success || !settled.transaction) {
+    console.warn("x402 settle failed", bargainId, stallId, {
+      reason: settled.errorReason,
+      message: settled.errorMessage,
+      payer: settled.payer ?? verified.payer,
+    });
     return {
       ok: false,
       status: 402,
