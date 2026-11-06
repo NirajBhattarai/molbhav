@@ -91,9 +91,13 @@ JSON-RPC 2.0 with headers `A2A-Version: 1.0` and `A2A-Extensions: {origin}/a2a/e
 | `GetTask` / `SubscribeToTask` / `CancelTask` | Follow or cancel the task                          |
 
 Pricing rules live in `src/lib/server/stall-agent.ts`. Gemini wording (and a price pick
-inside the allowed range) is `src/lib/server/ai-agent.ts`; without Gemini the stall falls
+inside the allowed range) is `src/lib/server/ai-agent/`; without Gemini the stall falls
 back to catalog notes. Accepted outside deals are stored as `bargains.source = 'a2a'` for
 the shop screen.
+
+In-app buyer bargains (`seedHaggle`) use the buyer brain in `src/lib/server/buyer-agent.ts`
+against a local channel that applies the same stall pricing rules and optional `shopperSays`
+wording — still writing `turns` / `offers`, not calling stall agents over A2A yet.
 
 ## Spec references
 
@@ -104,4 +108,4 @@ the shop screen.
 ## Not in this slice
 
 - Market directory card / `find` / catalog
-- Buyer agent as an A2A client / buyer Gemini (app still uses local `seedHaggle`)
+- Buyer agent as an A2A client (in-app `seedHaggle` talks locally, not over JSON-RPC)
