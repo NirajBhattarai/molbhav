@@ -27,6 +27,7 @@
 
 - [Next.js](https://nextjs.org) (App Router) + TypeScript
 - Tailwind CSS
+- Postgres on Neon, Redis on Vercel (Redis Cloud)
 - ESLint
 
 ## Getting started
@@ -42,15 +43,16 @@ Open [http://localhost:3000](http://localhost:3000). Shopkeepers: sign in → **
 
 ## Scripts
 
-| Command              | Description               |
-| -------------------- | ------------------------- |
-| `npm run dev`        | Start the dev server      |
-| `npm run build`      | Create a production build |
-| `npm run start`      | Run the production build  |
-| `npm run lint`       | Run ESLint                |
-| `npm run db:migrate` | Apply Postgres migrations |
-| `npm test`           | Run the tests once        |
-| `npm run test:watch` | Re-run tests on save      |
+| Command              | Description                |
+| -------------------- | -------------------------- |
+| `npm run dev`        | Start the dev server       |
+| `npm run build`      | Create a production build  |
+| `npm run start`      | Run the production build   |
+| `npm run lint`       | Run ESLint                 |
+| `npm run db:migrate` | Apply Postgres migrations  |
+| `npm run redis:ping` | Check the Redis connection |
+| `npm test`           | Run the tests once         |
+| `npm run test:watch` | Re-run tests on save       |
 
 ## Tests
 

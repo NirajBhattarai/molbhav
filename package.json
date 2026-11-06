@@ -10,6 +10,7 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "db:migrate": "node scripts/migrate.mjs",
+    "redis:ping": "node scripts/redis-ping.mjs",
     "test": "vitest run",
     "test:watch": "vitest"
   },
@@ -23,6 +24,7 @@
     "next": "16.4.5",
     "react": "19.3.0",
     "react-dom": "19.3.0",
+    "redis": "^6.3.1",
     "server-only": "^0.0.1"
   },
   "devDependencies": {
