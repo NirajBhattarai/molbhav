@@ -36,30 +36,73 @@ export const mirrorNode = (network: HederaNetwork = hederaNetwork()) =>
     ? "https://mainnet-public.mirrornode.hedera.com"
     : "https://testnet.mirrornode.hedera.com";
 
+type MirrorAccount = {
+  account?: string;
+  key?: { key?: string } | null;
+  balance?: { balance?: number };
+};
+
+/** Hex with no `0x` and no DER prefix, lower case, for comparing keys. */
+const rawKey = (k: string) => k.toLowerCase().replace(/^0x/, "");
+
 /**
- * The Hedera account Magic signs for (`0.0.x`) and its public key. This is the account that pays,
- * and it is not the EVM address in `getInfo().wallets`: that one is a different (secp256k1) key.
- * Null until Magic has a Hedera account for this sign-in.
+ * The Hedera account Magic pays from (`0.0.x`), its public key and its balance in tinybars. One
+ * answer per page, shared by the profile and the pay button, so both always show the same account.
+ *
+ * Magic's own example pays from the user's Hedera account id and signs with
+ * `magic.hedera.getPublicKey()`. That account must hold that key, or the signature can't count, so
+ * every candidate is checked against the mirror node: Magic's account id first, then any account
+ * the key controls (the richest one if there are several). The EVM address in `getInfo().wallets`
+ * is a different (secp256k1) key and is never used to pay. Null until Magic has a Hedera account.
  */
-export async function magicHederaAccount(
-  m: MolbhavMagic,
-  network: HederaNetwork = hederaNetwork(),
-) {
+export function magicHederaAccount(m: MolbhavMagic, network: HederaNetwork = hederaNetwork()) {
+  hederaAccount ??= findHederaAccount(m, network).catch((err) => {
+    hederaAccount = null;
+    throw err;
+  });
+  return hederaAccount;
+}
+
+let hederaAccount: ReturnType<typeof findHederaAccount> | null = null;
+
+async function findHederaAccount(m: MolbhavMagic, network: HederaNetwork) {
   const info = await m.hedera.getPublicKey();
   const der = typeof info === "string" ? info : info?.publicKeyDer;
   if (!der) return null;
   const { PublicKey } = await import("@hiero-ledger/sdk");
   const publicKey = PublicKey.fromString(der); // DER or raw hex
-  let accountId = typeof info === "object" ? info?.accountId : undefined;
-  if (!isHederaId(accountId)) {
-    const res = await fetch(
-      `${mirrorNode(network)}/api/v1/accounts?account.publickey=${publicKey.toStringRaw()}`,
-    );
-    const found = res.ok ? ((await res.json()) as { accounts?: { account?: string }[] }) : null;
-    accountId = found?.accounts?.[0]?.account;
+  const mine = rawKey(publicKey.toStringRaw());
+  const mirror = mirrorNode(network);
+
+  const candidates: string[] = [];
+  if (typeof info === "object" && isHederaId(info?.accountId)) candidates.push(info.accountId);
+  const user = await m.user.getInfo().catch(() => null);
+  const named = user?.wallets?.hedera?.publicAddress;
+  if (isHederaId(named)) candidates.push(named);
+
+  for (const id of new Set(candidates)) {
+    const res = await fetch(`${mirror}/api/v1/accounts/${id}`).catch(() => null);
+    const a = res?.ok ? ((await res.json()) as MirrorAccount) : null;
+    if (a?.key?.key && rawKey(a.key.key).endsWith(mine))
+      return { accountId: id, publicKey, balance: BigInt(a.balance?.balance ?? 0) };
   }
-  return isHederaId(accountId) ? { accountId, publicKey } : null;
+
+  const res = await fetch(`${mirror}/api/v1/accounts?account.publickey=${mine}&limit=25`).catch(
+    () => null,
+  );
+  const found = res?.ok ? ((await res.json()) as { accounts?: MirrorAccount[] }).accounts : [];
+  const best = (found ?? [])
+    .filter((a) => isHederaId(a.account))
+    .sort((a, b) => (b.balance?.balance ?? 0) - (a.balance?.balance ?? 0))[0];
+  return best?.account
+    ? { accountId: best.account, publicKey, balance: BigInt(best.balance?.balance ?? 0) }
+    : null;
 }
+
+/** Forget the paying account (sign-out, or after a payment changes its balance). */
+export const forgetHederaAccount = () => {
+  hederaAccount = null;
+};
 
 let magic: Promise<MolbhavMagic> | null = null;
 
@@ -81,19 +124,16 @@ export function getMagic(): Promise<MolbhavMagic> {
 }
 
 /**
- * The buyer's Hedera wallet as shown on the profile: the account Magic pays from (`0.0.x`), so that
- * is the one people fund at the faucet. Falls back to the address in Magic's user info.
+ * The buyer's Hedera wallet as shown on the profile: exactly the account the pay button pays from
+ * (`0.0.x`), so it is the one to fund at the faucet. No EVM fallback: funding that address can't
+ * be spent by Magic's Hedera key.
  */
 export async function hederaWalletAddress(): Promise<string | null> {
   if (!key) return null;
   const m = await getMagic().catch(() => null);
   if (!m || !(await m.user.isLoggedIn().catch(() => false))) return null;
   const account = await magicHederaAccount(m).catch(() => null);
-  if (account) return account.accountId;
-  const info = await m.user.getInfo().catch(() => null);
-  const wallets = info?.wallets as
-    { hedera?: { publicAddress?: string }; ethereum?: { publicAddress?: string } } | undefined;
-  return wallets?.hedera?.publicAddress ?? wallets?.ethereum?.publicAddress ?? null;
+  return account?.accountId ?? null;
 }
 
 export type OtpEvent =
@@ -121,6 +161,7 @@ export async function startEmailOtp(
     throw new OtpError("Couldn't reach the sign-in service. Check your connection and try again.");
   });
   if (await m.user.isLoggedIn().catch(() => false)) await m.user.logout().catch(() => {});
+  forgetHederaAccount();
   const handle = m.auth.loginWithEmailOTP({ email, showUI: false, deviceCheckUI: false });
   let finished = false;
   const fail = (message: string) => {
@@ -164,6 +205,7 @@ export async function startEmailOtp(
 }
 
 export async function signOutOfMagic() {
+  forgetHederaAccount();
   if (!key) return;
   const m = await getMagic().catch(() => null);
   if (m && (await m.user.isLoggedIn().catch(() => false))) await m.user.logout().catch(() => {});
