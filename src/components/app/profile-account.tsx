@@ -5,21 +5,32 @@ import { ShieldCheck } from "lucide-react";
 import { BlockPrint } from "@/components/brand/block-print";
 import { CopyButton } from "@/components/ui/copy-button";
 import { useT } from "@/lib/i18n";
-import { hashscanAccountUrl, hederaNetwork, hederaWalletAddress, shortAddress } from "@/lib/magic";
+import {
+  hashscanAccountUrl,
+  hbarBalance,
+  hederaNetwork,
+  hederaWalletAddress,
+  shortAddress,
+} from "@/lib/magic";
+import { formatHbar } from "@/lib/x402";
 
 /** Account hero + Hedera wallet — same layout as the customer profile in molbhav-old. */
 export function ProfileAccount({ email }: { email: string }) {
   const t = useT();
   const [wallet, setWallet] = useState<string | null>(null);
   const [loaded, setLoaded] = useState(false);
+  const [balance, setBalance] = useState<bigint | null>(null);
   const network = hederaNetwork();
   const initial = email.charAt(0).toUpperCase() || "?";
 
   useEffect(() => {
     let live = true;
     hederaWalletAddress()
-      .then((addr) => {
-        if (live) setWallet(addr);
+      .then(async (addr) => {
+        if (!live) return;
+        setWallet(addr);
+        const tinybars = addr ? await hbarBalance(addr, network) : null;
+        if (live) setBalance(tinybars);
       })
       .finally(() => {
         if (live) setLoaded(true);
@@ -27,7 +38,7 @@ export function ProfileAccount({ email }: { email: string }) {
     return () => {
       live = false;
     };
-  }, []);
+  }, [network]);
 
   return (
     <>
@@ -85,6 +96,14 @@ export function ProfileAccount({ email }: { email: string }) {
       <section className="mt-6">
         <h2 className="mb-2 text-sm font-medium text-muted-foreground">{t("Wallet")}</h2>
         <ul className="divide-y divide-border rounded-xl border border-border bg-card">
+          {wallet && balance !== null && (
+            <li className="flex items-center justify-between gap-3 px-4 py-3">
+              <span className="text-sm text-muted-foreground">{t("Balance")}</span>
+              <span translate="no" className="font-mono font-semibold tabular-nums">
+                {formatHbar(balance)} HBAR
+              </span>
+            </li>
+          )}
           {wallet && (
             <li className="flex items-center gap-3 px-4 py-3">
               <span className="grid min-w-0 flex-1 gap-0.5">

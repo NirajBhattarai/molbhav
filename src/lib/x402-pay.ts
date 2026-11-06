@@ -5,8 +5,8 @@ import type { PaymentPayload, PaymentRequired, PaymentRequirements } from "@x402
 import {
   forgetHederaAccount,
   getMagic,
+  hbarBalance,
   magicHederaAccount,
-  mirrorNode,
   type MolbhavMagic,
 } from "@/lib/magic";
 import { HEDERA_MAINNET, isHederaId } from "@/lib/x402";
@@ -78,17 +78,8 @@ async function magicAccount(m: MolbhavMagic, mainnet: boolean) {
   return account;
 }
 
-/** Tinybars on an account, from the mirror node; null when it can't be read. */
-async function hbarBalance(mirror: string, account: string): Promise<bigint | null> {
-  const res = await fetch(`${mirror}/api/v1/accounts/${account}`).catch(() => null);
-  if (!res?.ok) return null;
-  const balance = ((await res.json()) as { balance?: { balance?: number } }).balance?.balance;
-  return typeof balance === "number" ? BigInt(balance) : null;
-}
-
 async function signedTransfer(m: MolbhavMagic, req: PaymentRequirements): Promise<string> {
   const mainnet = req.network === HEDERA_MAINNET;
-  const mirror = mirrorNode(mainnet ? "mainnet" : "testnet");
   const feePayer = (req.extra as { feePayer?: unknown }).feePayer;
   if (!isHederaId(feePayer)) throw new Error("The payment service sent no fee payer.");
 
@@ -97,7 +88,7 @@ async function signedTransfer(m: MolbhavMagic, req: PaymentRequirements): Promis
     import("@hiero-ledger/sdk"),
   ]);
   if (req.asset === "0.0.0") {
-    const have = await hbarBalance(mirror, accountId);
+    const have = await hbarBalance(accountId, mainnet ? "mainnet" : "testnet");
     if (have !== null && have < BigInt(req.amount))
       throw new NoFunds(accountId, have, BigInt(req.amount));
   }
