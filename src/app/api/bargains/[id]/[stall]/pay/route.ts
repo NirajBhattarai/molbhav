@@ -10,7 +10,7 @@ import { quoteDeal, settleDeal } from "@/lib/server/x402";
 
 /*
  * x402 for one agreed deal (docs/x402.md):
- *   GET   → 402, PAYMENT-REQUIRED: pay the stall `amount` USDC on Hedera (fees on the facilitator)
+ *   GET   → 402, PAYMENT-REQUIRED: pay the stall `amount` tinybars of HBAR (fees on the facilitator)
  *   POST  with PAYMENT-SIGNATURE (the buyer's signed transfer) → 200, PAYMENT-RESPONSE, deal paid
  * Only the buyer of the bargain can see or pay it.
  */

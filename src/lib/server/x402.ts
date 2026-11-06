@@ -12,7 +12,7 @@ import {
   HEDERA_TESTNET,
   X402_VERSION,
   dealRequirements,
-  inrPerUsd,
+  inrPerHbar,
   isHederaId,
   sameRequirements,
   type DealRequirements,
@@ -21,7 +21,7 @@ import {
 
 /*
  * x402 for agreed deals: the stall's resource server. GET a deal's payment requirements (402),
- * then POST the buyer's signed USDC transfer; the facilitator verifies and settles it on Hedera,
+ * then POST the buyer's signed HBAR transfer; the facilitator verifies and settles it on Hedera,
  * and the offer becomes paid with the transaction id as proof.
  *
  *   x402:fee-payer:{network}    the facilitator's fee-payer account (from /supported)   1 h
@@ -128,7 +128,7 @@ export type PayQuote =
   | { ok: true; required: PaymentRequired; requirements: DealRequirements; payToVia: string }
   | { ok: false; status: number; error: string };
 
-/** The 402 for one agreed deal: pay `amount` USDC to the stall, fees on the facilitator. */
+/** The 402 for one agreed deal: pay `amount` tinybars to the stall, fees on the facilitator. */
 export async function quoteDeal(
   bargainId: string,
   stallId: string,
@@ -149,7 +149,7 @@ export async function quoteDeal(
   const requirements = dealRequirements({
     network,
     rupees: deal.current,
-    inrPerUsd: inrPerUsd(),
+    inrPerHbar: inrPerHbar(),
     payTo: payTo.account,
     feePayer: payer,
   });

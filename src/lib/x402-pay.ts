@@ -7,7 +7,7 @@ import { HEDERA_MAINNET, isHederaId } from "@/lib/x402";
 
 /*
  * Pays an agreed deal over x402 from the buyer's Magic Hedera wallet: fetch the deal's 402, sign a
- * USDC transfer whose transaction id is on the facilitator's account (it pays the fee and submits
+ * HBAR transfer whose transaction id is on the facilitator's account (it pays the fee and submits
  * it), and send it back. The key never leaves Magic; only the signature does.
  */
 
@@ -16,7 +16,7 @@ export type PayError =
   | "This deal can't be paid right now."
   | "Sign in again to pay."
   | "Your Hedera wallet isn't ready yet. Open your profile, then try again."
-  | "Your Hedera wallet needs more testnet USDC for this. Get some from faucet.circle.com, then try again."
+  | "Your Hedera wallet needs more testnet HBAR for this. Get some from portal.hedera.com/faucet, then try again."
   | "Your wallet's signature didn't check out. Try again."
   | "The payment didn't go through.";
 
@@ -109,7 +109,7 @@ async function signedTransfer(m: MolbhavMagic, req: PaymentRequirements): Promis
 /** Why a payment failed, in words a buyer can act on. */
 function explain(reason: string | undefined, detail: string): PayError {
   if (reason?.includes("preflight") || /INSUFFICIENT|balance|NOT_ASSOCIATED/i.test(detail))
-    return "Your Hedera wallet needs more testnet USDC for this. Get some from faucet.circle.com, then try again.";
+    return "Your Hedera wallet needs more testnet HBAR for this. Get some from portal.hedera.com/faucet, then try again.";
   if (reason?.includes("signature")) return "Your wallet's signature didn't check out. Try again.";
   return "The payment didn't go through.";
 }

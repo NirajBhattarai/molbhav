@@ -5,7 +5,7 @@ import { ensureUser, me, type Me } from "@/lib/server/shop";
 import type { Lang } from "@/lib/languages";
 import type { OfferStatus } from "@/lib/offer-status";
 import { rupees } from "@/lib/want";
-import { inrPerUsd, usdcUnits } from "@/lib/x402";
+import { inrPerHbar, tinybars } from "@/lib/x402";
 
 export type { Me };
 export { me, ensureUser };
@@ -63,8 +63,8 @@ export type ChatView = {
   status: OfferStatus;
   asked: number | null;
   current: number | null;
-  /** The agreed price in USDC's smallest unit, for paying over x402 (null until agreed). */
-  usdc: string | null;
+  /** The agreed price in tinybars, for paying in HBAR over x402 (null until agreed). */
+  hbar: string | null;
   /** Hedera transaction id when the deal was paid over x402. */
   paidTx: string | null;
   turns: TurnView[];
@@ -274,9 +274,9 @@ async function loadChat(bargainId: string, stallId: string): Promise<CachedChat<
       status,
       asked: row.asked,
       current: row.current,
-      usdc:
+      hbar:
         row.current && (status === "agreed" || status === "paid")
-          ? usdcUnits(row.current, inrPerUsd()).toString()
+          ? tinybars(row.current, inrPerHbar()).toString()
           : null,
       paidTx: row.paid_tx,
       turns: turns.map((t) => ({
