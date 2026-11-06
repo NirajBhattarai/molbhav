@@ -49,3 +49,9 @@ Open [http://localhost:3000](http://localhost:3000). Shopkeepers: sign in → **
 | `npm run start`      | Run the production build  |
 | `npm run lint`       | Run ESLint                |
 | `npm run db:migrate` | Apply Postgres migrations |
+| `npm test`           | Run the tests once        |
+| `npm run test:watch` | Re-run tests on save      |
+
+## Tests
+
+Tests live in `test/`, apart from the app code, and mirror `src/`: `test/lib/menu.test.ts` tests `src/lib/menu.ts`. Shared setup and stubs are in `test/support/`. They use [Vitest](https://vitest.dev) and Testing Library, and need no database or API keys: the database, Gemini and server-only imports are mocked. Component tests start with `// @vitest-environment jsdom`.
