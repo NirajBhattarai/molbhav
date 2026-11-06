@@ -75,6 +75,13 @@ describe("stallRecords", () => {
     expect(r.coins.map((c) => c.coin)).toEqual([DEFAULT_EVM_COIN, HEDERA_TESTNET_COIN]);
   });
 
+  it("records the owner's Magic Hedera account as the Hedera address", () => {
+    const hederaPayout = "0x0000000000000000000000000000000000acdcec" as const; // 0.0.11328748
+    const coins = stallRecords({ ...base, hederaPayout }).coins;
+    expect(coins).toContainEqual({ coin: HEDERA_TESTNET_COIN, value: hederaPayout });
+    expect(coins).toContainEqual({ coin: DEFAULT_EVM_COIN, value: base.payout });
+  });
+
   it("leaves out addresses when the owner has no wallet", () => {
     expect(stallRecords({ ...base, payout: null }).coins).toEqual([]);
   });

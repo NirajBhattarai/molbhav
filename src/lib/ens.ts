@@ -85,6 +85,11 @@ export type StallRecordInput = {
   site: string;
   /** Where the stall is paid on EVM chains (the owner's wallet); null when unknown. */
   payout: `0x${string}` | null;
+  /**
+   * Where the stall is paid on Hedera: the owner's Magic Hedera account as its long-zero EVM
+   * address. Falls back to `payout` when unknown.
+   */
+  hederaPayout?: `0x${string}` | null;
 };
 
 export type StallRecords = {
@@ -116,7 +121,7 @@ export function stallRecords(s: StallRecordInput): StallRecords {
     coins: s.payout
       ? [
           { coin: DEFAULT_EVM_COIN, value: s.payout },
-          { coin: HEDERA_TESTNET_COIN, value: s.payout },
+          { coin: HEDERA_TESTNET_COIN, value: s.hederaPayout ?? s.payout },
         ]
       : [],
   };
