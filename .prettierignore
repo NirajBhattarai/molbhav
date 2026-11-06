@@ -7,3 +7,6 @@ next-env.d.ts
 
 # Xcode project (generated and rewritten by Xcode)
 ios/
+
+# Firmware build output and downloaded libraries
+firmware/**/.pio/
