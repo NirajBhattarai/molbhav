@@ -12,7 +12,7 @@ export function Screen({
   children: ReactNode;
 }) {
   return (
-    <main className="mx-auto min-h-dvh w-full max-w-md px-4 pt-[max(1rem,env(safe-area-inset-top))] pb-[max(1.5rem,env(safe-area-inset-bottom))]">
+    <main className="mx-auto min-h-dvh w-full max-w-md px-4 pt-[max(1rem,env(safe-area-inset-top))] pb-[calc(5.5rem+env(safe-area-inset-bottom))]">
       {(title || back) && (
         <header className="mb-4 flex min-h-11 items-center gap-1">
           {back && (

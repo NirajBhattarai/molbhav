@@ -1,7 +1,6 @@
 import { connection } from "next/server";
 import { Suspense } from "react";
 import { HomeRefresh } from "@/components/app/home-refresh";
-import { ProfileLink } from "@/components/app/profile-link";
 import { Screen } from "@/components/app/screen";
 import { WantForm } from "@/components/app/want-form";
 import { BlockPrint } from "@/components/brand/block-print";
@@ -14,11 +13,8 @@ export default function Home() {
   return (
     <Screen>
       <HomeRefresh />
-      <header className="mb-4 flex h-11 items-center justify-between gap-3">
+      <header className="mb-4 flex h-11 items-center gap-3">
         <Logo />
-        <Suspense fallback={null}>
-          <ProfileLink />
-        </Suspense>
       </header>
 
       <section className="relative animate-[rise_400ms_var(--ease-out)] overflow-hidden rounded-2xl bg-hero p-5 text-hero-foreground">
