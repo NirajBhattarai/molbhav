@@ -2,7 +2,13 @@
 
 import { decodePaymentRequiredHeader, encodePaymentSignatureHeader } from "@x402/core/http";
 import type { PaymentPayload, PaymentRequired, PaymentRequirements } from "@x402/core/types";
-import { getMagic, magicHederaAccount, mirrorNode, type MolbhavMagic } from "@/lib/magic";
+import {
+  forgetHederaAccount,
+  getMagic,
+  magicHederaAccount,
+  mirrorNode,
+  type MolbhavMagic,
+} from "@/lib/magic";
 import { HEDERA_MAINNET, isHederaId } from "@/lib/x402";
 
 /*
@@ -172,12 +178,14 @@ export async function payDeal(bargainId: string, stallId: string): Promise<PayOu
     return { ok: true, transaction: body.transaction, amount: body.amount ?? accepted.amount };
   } catch (err) {
     const detail = err instanceof Error ? err.message : String(err);
-    if (err instanceof NoFunds)
+    if (err instanceof NoFunds) {
+      forgetHederaAccount(); // look again after they top up
       return failed(
         "Your Hedera account {account} needs more testnet HBAR. Send some to it from portal.hedera.com/faucet, then try again.",
         detail,
         err.account,
       );
+    }
     if (err instanceof Unready)
       return failed(
         "Your Hedera wallet isn't ready yet. Open your profile, then try again.",
