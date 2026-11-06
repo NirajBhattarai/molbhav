@@ -23,6 +23,7 @@ import {
   permissionedResolverMulticallSnippet,
 } from "@ensdomains/ensjs-abi/v2/permissionedResolver";
 import { userRegistryRegisterSnippet } from "@ensdomains/ensjs-abi/v2/userRegistry";
+import { permissionedRegistryGetResolverSnippet } from "@ensdomains/ensjs-abi/v2/permissionedRegistry";
 import { encodeResolverSetterScope, resolverMulticallParameters } from "@ensdomains/ensjs/utils/v2";
 import {
   ENS_PARENT_DEFAULT,
@@ -85,9 +86,20 @@ type StallRow = {
   ens_records: string | null;
 };
 
+/** Without Redis: one run at a time in this process (two would each deploy a resolver). */
+let running = false;
+
 /** One transaction sequence at a time across instances: the registrar has one nonce. */
 async function withLock(run: () => Promise<void>) {
-  if (!redisConfigured()) return run();
+  if (!redisConfigured()) {
+    if (running) return;
+    running = true;
+    try {
+      return await run();
+    } finally {
+      running = false;
+    }
+  }
   const client = await redis();
   const got = await client.set("ens:registrar", "1", { NX: true, EX: LOCK_S });
   if (!got) return; // another instance is writing; the next shop save or visit picks this up
@@ -204,6 +216,18 @@ export async function syncStallName(stallId: string): Promise<void> {
       });
       await save("ens_status = 'registered'", []);
       s.ens_status = "registered";
+    }
+
+    // Once registered, the registry says which resolver the name uses: trust it over the database.
+    const onChain = (await pub.readContract({
+      address: registry()!,
+      abi: permissionedRegistryGetResolverSnippet,
+      functionName: "getResolver",
+      args: [label],
+    })) as Address;
+    if (onChain.toLowerCase() !== resolver!.toLowerCase()) {
+      resolver = onChain;
+      await save("ens_resolver = $2", [resolver]);
     }
 
     // 4. Enhanced Access Control: the shop's wallet may edit just these records on its own name.
