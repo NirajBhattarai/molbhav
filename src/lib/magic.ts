@@ -99,6 +99,19 @@ async function findHederaAccount(m: MolbhavMagic, network: HederaNetwork) {
     : null;
 }
 
+/** HBAR on a Hedera account, in tinybars, read fresh from the mirror node; null if unreadable. */
+export async function hbarBalance(
+  account: string,
+  network: HederaNetwork = hederaNetwork(),
+): Promise<bigint | null> {
+  const res = await fetch(`${mirrorNode(network)}/api/v1/accounts/${account}`, {
+    cache: "no-store",
+  }).catch(() => null);
+  if (!res?.ok) return null;
+  const balance = ((await res.json()) as MirrorAccount).balance?.balance;
+  return typeof balance === "number" ? BigInt(balance) : null;
+}
+
 /** Forget the paying account (sign-out, or after a payment changes its balance). */
 export const forgetHederaAccount = () => {
   hederaAccount = null;

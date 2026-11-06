@@ -35,6 +35,17 @@ export const CATALOG = {
     es: "Código de 6 dígitos",
     fr: "Code à 6 chiffres",
   },
+  Balance: {
+    hi: "बैलेंस",
+    mr: "शिल्लक",
+    ta: "இருப்பு",
+    ne: "ब्यालेन्स",
+    ja: "残高",
+    ko: "잔액",
+    zh: "余额",
+    es: "Saldo",
+    fr: "Solde",
+  },
   "A brass lamp under ₹2,000…": {
     hi: "₹2,000 से कम में पीतल का दीया…",
     mr: "₹2,000 च्या आत पितळेचा दिवा…",
