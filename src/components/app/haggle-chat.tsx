@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   Fragment,
   useEffect,
@@ -11,7 +12,7 @@ import {
   useTransition,
   type ReactNode,
 } from "react";
-import { ArrowDown, ChevronLeft, CircleCheck, Loader2, Sparkles } from "lucide-react";
+import { ArrowDown, ChevronLeft, CircleCheck, ExternalLink, Loader2, Sparkles } from "lucide-react";
 import { LiveRefresh } from "@/components/app/live-refresh";
 import { StallAvatar } from "@/components/app/stall-avatar";
 import { action, focusRing } from "@/components/ui/styles";
@@ -21,6 +22,8 @@ import { LANG } from "@/lib/languages";
 import { HANDED_OFF, OVER_BUDGET, statusChip } from "@/lib/offer-status";
 import type { ChatView, TurnView } from "@/lib/server/bargains";
 import { rupees } from "@/lib/want";
+import { formatUsdc, hashscanTxUrl } from "@/lib/x402";
+import { payDeal, type PayError } from "@/lib/x402-pay";
 
 /* ─── Building the thread ────────────────────────────────────────────────────────────────── */
 
@@ -192,6 +195,18 @@ export function HaggleChat({ chat }: { chat: ChatView }) {
   const clock = useClock();
   const [busy, start] = useTransition();
   const [paying, startPay] = useTransition();
+  const [payingUsdc, startUsdc] = useTransition();
+  const [payError, setPayError] = useState<PayError | null>(null);
+  const router = useRouter();
+  const usdc = chat.usdc ?? null;
+  const paidTx = chat.paidTx ?? null;
+  const payUsdc = () =>
+    startUsdc(async () => {
+      setPayError(null);
+      const paid = await payDeal(chat.bargainId, chat.stall.id);
+      if (paid.ok) router.refresh();
+      else setPayError(paid.error);
+    });
   const log = useRef<HTMLDivElement>(null);
   const end = useRef<HTMLDivElement>(null);
   const landed = useRef(false);
@@ -424,14 +439,32 @@ export function HaggleChat({ chat }: { chat: ChatView }) {
                 <span className="tabular-nums">· {rupees(chat.current)}</span>
               )}
             </p>
+            {usdc && (
+              <button
+                type="button"
+                disabled={payingUsdc || paying}
+                onClick={payUsdc}
+                className={action.primary}
+              >
+                {payingUsdc && <Loader2 className="size-5 animate-spin" aria-hidden />}
+                {payingUsdc
+                  ? t("Paying on Hedera…")
+                  : t("Pay {amount} USDC", { amount: formatUsdc(usdc) })}
+              </button>
+            )}
+            {payError && (
+              <p role="alert" className="text-center text-sm text-destructive">
+                {t(payError)}
+              </p>
+            )}
             <button
               type="button"
-              disabled={paying}
+              disabled={paying || payingUsdc}
               onClick={() => startPay(async () => markPaid(chat.bargainId, chat.stall.id))}
-              className={action.primary}
+              className={usdc ? action.outline : action.primary}
             >
               {paying && <Loader2 className="size-5 animate-spin" aria-hidden />}
-              {t("I've paid")}
+              {usdc ? t("I've paid another way") : t("I've paid")}
             </button>
           </>
         )}
@@ -444,6 +477,19 @@ export function HaggleChat({ chat }: { chat: ChatView }) {
               <span className="tabular-nums">· {rupees(chat.current)}</span>
             )}
           </p>
+        )}
+        {chat.status === "paid" && paidTx && (
+          <a
+            href={hashscanTxUrl(paidTx)}
+            target="_blank"
+            rel="noreferrer"
+            className={`${focusRing} flex items-center justify-center gap-1.5 rounded-md text-sm text-muted-foreground underline-offset-2 hover:underline`}
+          >
+            {usdc
+              ? t("Paid {amount} USDC on Hedera · HashScan", { amount: formatUsdc(usdc) })
+              : t("Paid on Hedera · HashScan")}
+            <ExternalLink className="size-3.5" aria-hidden />
+          </a>
         )}
 
         {chat.status === "declined" && (

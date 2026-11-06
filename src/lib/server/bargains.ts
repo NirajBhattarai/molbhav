@@ -5,6 +5,7 @@ import { ensureUser, me, type Me } from "@/lib/server/shop";
 import type { Lang } from "@/lib/languages";
 import type { OfferStatus } from "@/lib/offer-status";
 import { rupees } from "@/lib/want";
+import { inrPerUsd, usdcUnits } from "@/lib/x402";
 
 export type { Me };
 export { me, ensureUser };
@@ -62,6 +63,10 @@ export type ChatView = {
   status: OfferStatus;
   asked: number | null;
   current: number | null;
+  /** The agreed price in USDC's smallest unit, for paying over x402 (null until agreed). */
+  usdc: string | null;
+  /** Hedera transaction id when the deal was paid over x402. */
+  paidTx: string | null;
   turns: TurnView[];
   /** Who is expected next while agents are mid-exchange. */
   next: "agent" | "stall" | null;
@@ -217,10 +222,11 @@ async function loadChat(bargainId: string, stallId: string): Promise<CachedChat<
     asked: number | null;
     current: number | null;
     version: number;
+    paid_tx: string | null;
   }>(
     `SELECT b.id AS bargain_id, b.buyer_id, b.title, b.budget,
             o.stall_id, s.name AS stall_name, s.lang AS stall_lang,
-            i.name AS item_name, o.status, o.asked, o.current, o.version
+            i.name AS item_name, o.status, o.asked, o.current, o.version, o.paid_tx
      FROM bargains b
      JOIN offers o ON o.bargain_id = b.id
      JOIN stalls s ON s.id = o.stall_id
@@ -268,6 +274,11 @@ async function loadChat(bargainId: string, stallId: string): Promise<CachedChat<
       status,
       asked: row.asked,
       current: row.current,
+      usdc:
+        row.current && (status === "agreed" || status === "paid")
+          ? usdcUnits(row.current, inrPerUsd()).toString()
+          : null,
+      paidTx: row.paid_tx,
       turns: turns.map((t) => ({
         id: t.id,
         speaker: t.speaker,
