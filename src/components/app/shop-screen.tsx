@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useOptimistic, useState, useTransition, type FormEvent } from "react";
-import Link from "next/link";
 import { Camera, Check, MapPin, Pencil, Sparkles, Store } from "lucide-react";
 import { AgentCardAddress, stallAgentCardPath } from "@/components/app/agent-address";
 import { HomeRefresh } from "@/components/app/home-refresh";
@@ -44,12 +43,10 @@ export function ShopScreen({
   stall,
   items,
   canReadMenu,
-  email,
 }: {
   stall: ShopStall | null;
   items: ShopItem[];
   canReadMenu: boolean;
-  email: string;
 }) {
   const t = useT();
   const tx = useTx();
@@ -95,20 +92,11 @@ export function ShopScreen({
   }
 
   return (
-    <main className="mx-auto flex min-h-dvh w-full max-w-md flex-col gap-4 px-4 pt-[max(1.5rem,env(safe-area-inset-top))] pb-[max(1.5rem,env(safe-area-inset-bottom))]">
+    <main className="mx-auto flex min-h-dvh w-full max-w-md flex-col gap-4 px-4 pt-[max(1.5rem,env(safe-area-inset-top))] pb-[calc(5.5rem+env(safe-area-inset-bottom))]">
       <HomeRefresh everyMs={4_000} />
-      <header className="flex items-center justify-between gap-3">
-        <div>
-          <p className="text-sm font-medium text-muted-foreground">{t("For shopkeepers")}</p>
-          <h1 className="font-display text-3xl font-bold tracking-tight">{t("Your stall")}</h1>
-        </div>
-        <Link
-          href="/profile"
-          title={email}
-          className="-mr-2 inline-flex h-11 max-w-[12rem] items-center truncate rounded-lg px-2 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
-        >
-          {email}
-        </Link>
+      <header>
+        <p className="text-sm font-medium text-muted-foreground">{t("For shopkeepers")}</p>
+        <h1 className="font-display text-3xl font-bold tracking-tight">{t("Your stall")}</h1>
       </header>
 
       <HeroCard label={t("Stall")}>
