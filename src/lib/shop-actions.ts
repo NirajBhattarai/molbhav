@@ -4,6 +4,8 @@ import { refresh } from "next/cache";
 import { isLang, type Lang } from "@/lib/languages";
 import { aliasesFor, geminiConfigured, geminiJSON } from "@/lib/server/gemini";
 import { ensureUser, me, type Style } from "@/lib/server/shop";
+import { buildClaimPack, claimSignWithCode } from "@/lib/server/sign-claim";
+import { stallDeviceToken } from "@/lib/server/stall-device";
 import { query, transaction } from "@/lib/server/db";
 import { menuKey } from "@/lib/menu";
 import { parseUpi } from "@/lib/upi";
@@ -99,13 +101,59 @@ export async function pinLocation(lat: number, lng: number): Promise<{ error: st
   return null;
 }
 
+/** Agent id + device token + offline claim pack for the stall sign. */
+export async function stallSignCredentials(): Promise<{
+  agentId: string;
+  deviceToken: string;
+  claimPack: string;
+  stallName: string;
+  server: string;
+} | null> {
+  const user = await me();
+  const [row] = await query<{ agent_id: string | null; name: string }>(
+    "SELECT agent_id, name FROM stalls WHERE owner_id = $1",
+    [user.id],
+  );
+  if (!row?.agent_id) return null;
+  const deviceToken = stallDeviceToken(row.agent_id);
+  const server = (
+    process.env.NEXT_PUBLIC_APP_URL?.trim() ||
+    process.env.VERCEL_PROJECT_PRODUCTION_URL?.trim() ||
+    "https://molbhav-eta.vercel.app"
+  ).replace(/\/$/, "");
+  const serverUrl = server.startsWith("http") ? server : `https://${server}`;
+  return {
+    agentId: row.agent_id,
+    deviceToken,
+    stallName: row.name || "Molbhav Stall",
+    server: serverUrl,
+    claimPack: buildClaimPack({
+      agentId: row.agent_id,
+      deviceToken,
+      server: serverUrl,
+      stallName: row.name || "Molbhav Stall",
+    }),
+  };
+}
+
+/** Bind a waiting sign (OLED 6-digit code) to this shopkeeper’s stall. */
+export async function linkStallSign(claimCode: string) {
+  const user = await me();
+  return claimSignWithCode(user.id, claimCode);
+}
+
 /**
  * Open or closed. Opens only when named, UPI set, pinned, and at least one menu item.
  */
 export async function setStallOpen(open: boolean) {
   const user = await me();
   await query(
-    `UPDATE stalls s SET is_open = $2, updated_at = now() WHERE owner_id = $1
+    `UPDATE stalls s
+     SET is_open = $2,
+         device_status = CASE WHEN $2 THEN 'open' ELSE 'closed' END,
+         pause_until = NULL,
+         updated_at = now()
+     WHERE owner_id = $1
        AND (NOT $2 OR (s.name <> '' AND s.upi_id IS NOT NULL AND s.lat IS NOT NULL AND s.lng IS NOT NULL
          AND EXISTS (SELECT 1 FROM stall_items i WHERE i.stall_id = s.id AND i.active)))`,
     [user.id, open === true],

@@ -126,13 +126,21 @@ reset-shop                                 clear the shop (stops broadcasting af
 forget-wifi
 ```
 
-### At the stall: from a phone
+### At the stall: from a phone (recommended)
 
-1. Power the sign. With no agent id (or when you hold **PAUSE** while plugging it in), it opens a hotspot
-   called **Molbhav-Setup-XXXX**, where XXXX is printed on the screen. The password is `molbhav123`.
-2. Join it from a phone; the setup page opens (or go to `192.168.4.1`).
-3. **Configure WiFi** picks the network and saves the shop fields. **Setup** changes only the shop fields.
-4. The sign restarts and broadcasts `MolbhavA-<agent id>`.
+No long tokens to type. The sign shows a **6-digit code**; you enter it in the Molbhav shop app.
+
+1. In Molbhav (shop), finish UPI so the stall has an agent id.
+2. Power the sign (or hold **PAUSE** while plugging in). It opens hotspot **Molbhav-Setup-XXXX**
+   (XXXX is on the screen). Password: `molbhav123`.
+3. Join the hotspot → open `192.168.4.1` → **Configure WiFi** (market Wi‑Fi only). You can leave
+   agent/token empty.
+4. Phone back on normal Wi‑Fi / cellular. Sign screen shows a **6-digit code**.
+5. Molbhav shop → **Stall sign** → type the code → **Link sign**.
+6. Sign loads agent + device token from the server and starts broadcasting `MolbhavA-<agent id>`.
+
+**Offline fallback:** before joining the hotspot, copy **Claim pack** from the shop screen, paste it
+into the sign’s setup page as one field (no app link step).
 
 To forget the Wi-Fi network, hold **POWER** while plugging the sign in.
 
@@ -194,7 +202,14 @@ it for the stall that owns the token and reply with the same body as the GET bel
 light blinks and the beacon says `3`. The sign beeps once when a new deal starts; when it is agreed, it
 plays a chime, shows DEAL AGREED, then the price and UPI ID, and adds one to "Deals today".
 
-These endpoints aren't in the app yet. Until they are, leave the server empty.
+The app implements these routes. Fresh chips default `SERVER_BASE_URL` to `https://molbhav-eta.vercel.app`.
+After Wi‑Fi, the sign registers and shows a claim code; the shop app links it and the server returns the
+device token automatically. USB `set token` / claim pack still work for advanced setups.
+
+The chip id in those requests is the board's factory MAC address, which anyone near the sign can work
+out, so it isn't proof on its own. On first use the sign makes a random 32-character secret, keeps it in
+flash (`reset-shop` leaves it alone), and sends it as `X-Claim-Secret` to `register` and `claim-status`.
+The server stores only its SHA-256 and gives the claim code and device token only to that secret.
 
 ## Troubleshooting
 

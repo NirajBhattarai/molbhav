@@ -1,17 +1,24 @@
 "use client";
 
-import { useOptimistic, useState, useTransition, type FormEvent } from "react";
+import { useEffect, useOptimistic, useState, useTransition, type FormEvent } from "react";
 import Link from "next/link";
 import { Camera, Check, MapPin, Pencil, Sparkles, Store } from "lucide-react";
 import { AgentCardAddress, stallAgentCardPath } from "@/components/app/agent-address";
 import { HeroCard, LiveToggle } from "@/components/app/hero";
 import { MenuSection } from "@/components/app/menu-editor";
 import { QrScanner } from "@/components/app/qr-scanner";
+import { CopyButton } from "@/components/ui/copy-button";
 import { Field, Sheet, fieldInput } from "@/components/ui/sheet";
 import { outlineButton, primaryButton } from "@/components/ui/styles";
 import { LANG, LANGS, type Lang } from "@/lib/languages";
 import type { ShopItem, ShopStall, Style } from "@/lib/server/shop";
-import { pinLocation, saveStallDetails, setStallOpen } from "@/lib/shop-actions";
+import {
+  linkStallSign,
+  pinLocation,
+  saveStallDetails,
+  setStallOpen,
+  stallSignCredentials,
+} from "@/lib/shop-actions";
 import { isVpa, parseUpi } from "@/lib/upi";
 
 function setupSteps(stall: ShopStall | null, items: ShopItem[]) {
@@ -243,8 +250,108 @@ function AgentCard({
           It never goes below your lowest price.
         </p>
         {open && agentId && <AgentCardAddress path={stallAgentCardPath(agentId)} />}
+        {agentId && <SignDeviceCreds />}
       </div>
     </section>
+  );
+}
+
+/** Link an ESP32 stall sign: 6-digit OLED code (best) or offline claim pack. */
+function SignDeviceCreds() {
+  const [creds, setCreds] = useState<{
+    agentId: string;
+    deviceToken: string;
+    claimPack: string;
+  } | null>(null);
+  const [code, setCode] = useState("");
+  const [msg, setMsg] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [showAdvanced, setShowAdvanced] = useState(false);
+
+  useEffect(() => {
+    void stallSignCredentials()
+      .then(setCreds)
+      .catch(() => setCreds(null));
+  }, []);
+  if (!creds) return null;
+
+  async function link(e: FormEvent) {
+    e.preventDefault();
+    setBusy(true);
+    setMsg("");
+    try {
+      const res = await linkStallSign(code);
+      if (res && "error" in res) setMsg(String(res.error));
+      else setMsg("Sign linked. It will pick up this stall in a few seconds.");
+    } catch {
+      setMsg("Couldn’t link just now. Try again.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="mt-3 grid gap-3 rounded-xl border border-border/80 bg-muted/40 p-3">
+      <div>
+        <p className="text-xs font-semibold text-muted-foreground">Stall sign</p>
+        <p className="mt-1 text-xs text-pretty text-muted-foreground">
+          Easiest: join the sign’s hotspot, save market Wi‑Fi only, then enter the 6-digit code from
+          its screen here.
+        </p>
+      </div>
+      <form onSubmit={link} className="flex flex-wrap items-center gap-2">
+        <input
+          inputMode="numeric"
+          pattern="[0-9]{6}"
+          maxLength={6}
+          placeholder="123456"
+          value={code}
+          onChange={(e) => setCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+          className="h-10 w-28 rounded-lg border border-input bg-background px-3 font-mono text-base tracking-widest tabular-nums outline-none focus-visible:border-primary"
+          aria-label="Six-digit code from the sign"
+        />
+        <button type="submit" disabled={busy || code.length !== 6} className={primaryButton}>
+          {busy ? "Linking…" : "Link sign"}
+        </button>
+      </form>
+      {msg && (
+        <p role="status" className="text-xs font-medium text-pretty">
+          {msg}
+        </p>
+      )}
+      <button
+        type="button"
+        onClick={() => setShowAdvanced((v) => !v)}
+        className="justify-self-start text-xs font-semibold text-primary"
+      >
+        {showAdvanced ? "Hide" : "Offline claim pack / USB"}
+      </button>
+      {showAdvanced && (
+        <div className="grid gap-2">
+          <p className="text-xs text-pretty text-muted-foreground">
+            No internet on the phone while you’re on the sign hotspot? Copy the claim pack first,
+            paste it into the sign’s setup page as one field.
+          </p>
+          <CredRow label="Claim pack" value={creds.claimPack} />
+          <CredRow label="Agent id" value={creds.agentId} />
+          <CredRow label="Device token" value={creds.deviceToken} />
+        </div>
+      )}
+    </div>
+  );
+}
+
+function CredRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex min-w-0 items-center gap-1 rounded-lg bg-background/80 py-0.5 ps-2.5">
+      <span className="shrink-0 text-[10px] font-semibold tracking-wide text-muted-foreground uppercase">
+        {label}
+      </span>
+      <code translate="no" className="min-w-0 flex-1 truncate font-mono text-xs">
+        {value}
+      </code>
+      <CopyButton value={value} label={`Copy ${label}`} className="text-muted-foreground" />
+    </div>
   );
 }
 

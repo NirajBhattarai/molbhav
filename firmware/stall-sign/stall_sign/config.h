@@ -20,8 +20,11 @@
 // Leave SERVER_BASE_URL empty ("") to use the sign on its own: buttons, lights, screen
 // and Bluetooth all work without a server.
 
-#define SERVER_BASE_URL ""  // default for new chips, e.g. "https://molbhav-eta.vercel.app" (no trailing slash)
-#define DEVICE_TOKEN ""     // per shop, sent as "Authorization: Bearer <token>"
+// Default Molbhav site so a fresh chip can register a claim code after Wi‑Fi without typing a URL.
+#define SERVER_BASE_URL "https://molbhav-eta.vercel.app"
+#define DEVICE_TOKEN ""  // filled by claim (shop links 6-digit code) or optional claim pack / USB
+#define REGISTER_PATH "/api/stall/device/register"
+#define CLAIM_STATUS_PATH "/api/stall/device/claim-status"
 #define STATUS_PATH "/api/stall/device/status"
 #define STATE_PATH "/api/stall/device/state"
 

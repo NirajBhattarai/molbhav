@@ -1,3 +1,5 @@
 .pio/
 .vscode/
 build/
+# PlatformIO writes this while compiling the .ino
+*.ino.cpp

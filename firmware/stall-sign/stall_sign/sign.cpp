@@ -69,16 +69,24 @@ Preferences shopPrefs;  // "shop": this chip's shop settings
 Button powerButton = {PIN_BTN_POWER, false, 0};
 Button pauseButton = {PIN_BTN_PAUSE, false, 0};
 
-// Fields on the setup page. Values are filled in from flash before the page opens.
-WiFiManagerParameter fieldAgent("agent", "Agent id (agent_ + 10 hex digits)", "", 16);
-WiFiManagerParameter fieldName("name", "Stall name", "", 40);
-WiFiManagerParameter fieldServer("server", "Server address (optional)", "", 100);
-WiFiManagerParameter fieldToken("token", "Device token (optional)", "", 100);
+// Fields on the setup page. Prefer claim pack (one paste) or Wi‑Fi only + OLED code in the app.
+WiFiManagerParameter fieldClaim("claim", "Claim pack from Molbhav app (optional)", "", 200);
+WiFiManagerParameter fieldName("name", "Stall name (optional)", "", 40);
+WiFiManagerParameter fieldAgent("agent", "Agent id (advanced)", "", 16);
+WiFiManagerParameter fieldServer("server", "Server URL (advanced)", "", 100);
+WiFiManagerParameter fieldToken("token", "Device token (advanced)", "", 100);
 
 // ---------- State ----------
 
 Shop shop;
-String apName;  // this chip's setup hotspot, e.g. Molbhav-Setup-1170
+String apName;   // setup hotspot, e.g. Molbhav-Setup-1170
+String chipId;   // MAC hex for claim register
+// Random secret proving this is the same chip when it claims (anyone nearby can learn the MAC).
+// Kept in the "sign" namespace, so reset-shop doesn't change it; made once Wi-Fi is up, because
+// the hardware random generator is only truly random while the radio runs.
+String claimSecret;
+String claimCode;  // 6 digits shown while waiting for the shop app
+uint32_t lastClaimTry = 0;
 
 Status status = ST_CLOSED;
 uint32_t statusChangedAt = 0;
@@ -252,9 +260,19 @@ void screenLines(String& title, String& word, String& line1, String& line2, Stri
   foot = fit(wifiLine(), 21);
   if (!configured()) {
     title = "Molbhav Stall Sign";
-    word = "SET UP";
-    line1 = "Join " + apName;
-    line2 = "Pass " + String(SETUP_AP_PASSWORD);
+    if (claimCode.length() == 6 && WiFi.status() == WL_CONNECTED) {
+      word = claimCode;
+      line1 = "Enter code in shop app";
+      line2 = "Molbhav → Stall sign";
+    } else if (portalOpen) {
+      word = "SET UP";
+      line1 = "Join " + apName;
+      line2 = "Pass " + String(SETUP_AP_PASSWORD);
+    } else {
+      word = "SET UP";
+      line1 = "Connecting WiFi...";
+      line2 = "Then enter code in app";
+    }
     return;
   }
   switch (beaconByte()) {
@@ -468,7 +486,8 @@ void pressPause() {
 
 // ---------- Server sync ----------
 
-bool request(const char* method, const char* path, const String& body, String& out) {
+bool request(const char* method, const char* path, const String& body, String& out,
+             const String& secret = "") {
   if (!serverEnabled() || WiFi.status() != WL_CONNECTED) return false;
 
   String url = shop.server + path;
@@ -489,6 +508,7 @@ bool request(const char* method, const char* path, const String& body, String& o
 
   if (shop.token.length()) http.addHeader("Authorization", "Bearer " + shop.token);
   http.addHeader("X-Agent-Id", shop.agentId);
+  if (secret.length()) http.addHeader("X-Claim-Secret", secret);
 
   int code;
   if (strcmp(method, "POST") == 0) {
@@ -572,27 +592,64 @@ void syncServer() {
 
 // ---------- Wi-Fi and the setup page ----------
 
-// Saved from the setup page: keep the new shop settings and restart so the beacon uses them.
-void onSaveParams() {
-  String agent = fieldAgent.getValue();
+// Claim pack from the Molbhav shop app: mb1|agentId|token|server|name
+bool applyClaimPack(const String& raw) {
+  if (!raw.startsWith("mb1|")) return false;
+  String rest = raw.substring(4);
+  int p1 = rest.indexOf('|');
+  int p2 = p1 < 0 ? -1 : rest.indexOf('|', p1 + 1);
+  int p3 = p2 < 0 ? -1 : rest.indexOf('|', p2 + 1);
+  if (p1 < 0 || p2 < 0 || p3 < 0) return false;
+  String agent = rest.substring(0, p1);
+  String token = rest.substring(p1 + 1, p2);
+  String server = rest.substring(p2 + 1, p3);
+  String name = rest.substring(p3 + 1);
   agent.trim();
   agent.toLowerCase();
-  if (agent.length() && !validAgentId(agent)) {
-    Serial.printf("Ignored agent id '%s': it must be agent_ + 10 hex digits\n", agent.c_str());
+  token.trim();
+  server.trim();
+  name.trim();
+  while (server.endsWith("/")) server.remove(server.length() - 1);
+  if (!validAgentId(agent) || !token.length() || !server.length()) return false;
+  shop.agentId = agent;
+  shop.token = token;
+  shop.server = server;
+  if (name.length()) shop.name = name;
+  return true;
+}
+
+// Saved from the setup page: keep the new shop settings and restart so the beacon uses them.
+void onSaveParams() {
+  String pack = fieldClaim.getValue();
+  pack.trim();
+  if (pack.length() && applyClaimPack(pack)) {
+    Serial.println("Claim pack applied");
   } else {
-    shop.agentId = agent;
+    String agent = fieldAgent.getValue();
+    agent.trim();
+    agent.toLowerCase();
+    if (agent.length() && !validAgentId(agent)) {
+      Serial.printf("Ignored agent id '%s': it must be agent_ + 10 hex digits\n", agent.c_str());
+    } else if (agent.length()) {
+      shop.agentId = agent;
+    }
+    String server = fieldServer.getValue();
+    String token = fieldToken.getValue();
+    server.trim();
+    token.trim();
+    while (server.endsWith("/")) server.remove(server.length() - 1);
+    if (server.length()) shop.server = server;
+    if (token.length()) shop.token = token;
   }
-  shop.name = fieldName.getValue();
-  shop.server = fieldServer.getValue();
-  shop.token = fieldToken.getValue();
-  shop.name.trim();
-  shop.server.trim();
-  while (shop.server.endsWith("/")) shop.server.remove(shop.server.length() - 1);
-  shop.token.trim();
+  String name = fieldName.getValue();
+  name.trim();
+  if (name.length()) shop.name = name;
   if (!shop.name.length()) shop.name = STALL_NAME;
+  if (!shop.server.length()) shop.server = SERVER_BASE_URL;
   saveShop();
   printShop();
-  restartAt = millis() + 2000;
+  stallName = shop.name;
+  if (configured()) restartAt = millis() + 2000;
 }
 
 void setupWifi(bool openSetup) {
@@ -602,17 +659,19 @@ void setupWifi(bool openSetup) {
     Serial.println("Saved Wi-Fi forgotten");
   }
 
+  fieldClaim.setValue("", 200);
   fieldAgent.setValue(shop.agentId.c_str(), 16);
   fieldName.setValue(shop.name.c_str(), 40);
   fieldServer.setValue(shop.server.c_str(), 100);
   fieldToken.setValue(shop.token.c_str(), 100);
-  wifiManager.addParameter(&fieldAgent);
+  wifiManager.addParameter(&fieldClaim);
   wifiManager.addParameter(&fieldName);
+  wifiManager.addParameter(&fieldAgent);
   wifiManager.addParameter(&fieldServer);
   wifiManager.addParameter(&fieldToken);
   wifiManager.setSaveParamsCallback(onSaveParams);
   wifiManager.setTitle("Molbhav Stall Sign");
-  // "Setup" (param) lets a shop change its settings without typing the Wi-Fi password again.
+  // Configure WiFi first; claim pack is optional. OLED code is used after Wi‑Fi joins.
   std::vector<const char*> menu = {"wifi", "param", "info", "exit"};
   wifiManager.setMenu(menu);
   wifiManager.setConfigPortalBlocking(false);
@@ -625,6 +684,76 @@ void setupWifi(bool openSetup) {
     portalOpen = !wifiManager.autoConnect(apName.c_str(), SETUP_AP_PASSWORD);
   }
   if (portalOpen) Serial.printf("Setup page: join Wi-Fi %s (password %s), open 192.168.4.1\n", apName.c_str(), SETUP_AP_PASSWORD);
+}
+
+// 32 hex characters from the hardware random generator, made once and kept in flash.
+void ensureClaimSecret() {
+  if (claimSecret.length() == 32) return;
+  claimSecret = prefs.getString("claimkey", "");
+  if (claimSecret.length() == 32) return;
+  char hex[33];
+  for (int i = 0; i < 4; i++) snprintf(hex + i * 8, 9, "%08lx", (unsigned long)esp_random());
+  claimSecret = hex;
+  prefs.putString("claimkey", claimSecret);
+}
+
+// After Wi‑Fi: ask Molbhav for a 6-digit code (or credentials if already claimed).
+void serviceClaim() {
+  if (configured() || !serverEnabled() || WiFi.status() != WL_CONNECTED) return;
+  if (lastClaimTry && millis() - lastClaimTry < 5000) return;
+  lastClaimTry = millis();
+  ensureClaimSecret();
+
+  String path = String(CLAIM_STATUS_PATH) + "?chip=" + chipId;
+  String out;
+  // First time (or expired): register to mint / refresh a code.
+  if (!claimCode.length()) {
+    JsonDocument doc;
+    doc["chipId"] = chipId;
+    String body;
+    serializeJson(doc, body);
+    if (!request("POST", REGISTER_PATH, body, out, claimSecret)) return;
+  } else if (!request("GET", path.c_str(), "", out, claimSecret)) {
+    return;
+  }
+
+  JsonDocument doc;
+  if (deserializeJson(doc, out)) return;
+  const char* st = doc["status"] | "";
+  if (!strcmp(st, "waiting")) {
+    const char* code = doc["claimCode"] | "";
+    if (strlen(code) == 6) {
+      claimCode = code;
+      Serial.printf("Claim code: %s (enter in Molbhav shop app)\n", code);
+      refreshScreen(true);
+    }
+    return;
+  }
+  if (!strcmp(st, "claimed")) {
+    String agent = doc["agentId"] | "";
+    String token = doc["deviceToken"] | "";
+    String server = doc["server"] | shop.server.c_str();
+    String name = doc["stallName"] | shop.name.c_str();
+    agent.toLowerCase();
+    if (!validAgentId(agent) || !token.length()) return;
+    shop.agentId = agent;
+    shop.token = token;
+    if (server.length()) {
+      shop.server = server;
+      while (shop.server.endsWith("/")) shop.server.remove(shop.server.length() - 1);
+    }
+    if (name.length()) shop.name = name;
+    stallName = shop.name;
+    claimCode = "";
+    saveShop();
+    printShop();
+    Serial.println("Claimed by shop app — restarting beacon");
+    restartAt = millis() + 1500;
+  }
+  if (!strcmp(st, "expired")) {
+    claimCode = "";
+    Serial.println("Claim code expired — registering a new one");
+  }
 }
 
 void serviceWifi() {
@@ -793,6 +922,12 @@ void setup() {
   char suffix[5];
   snprintf(suffix, sizeof(suffix), "%02X%02X", (uint8_t)(mac >> 32), (uint8_t)(mac >> 40));
   apName = String(SETUP_AP_PREFIX) + suffix;
+  char chip[13];
+  // Stable chip id for claim register (12 hex chars from MAC).
+  snprintf(chip, sizeof(chip), "%02x%02x%02x%02x%02x%02x",
+           (uint8_t)mac, (uint8_t)(mac >> 8), (uint8_t)(mac >> 16),
+           (uint8_t)(mac >> 24), (uint8_t)(mac >> 32), (uint8_t)(mac >> 40));
+  chipId = chip;
 
   loadShop();
 
@@ -831,6 +966,7 @@ void loop() {
 
   serviceBuzzer();
   serviceWifi();
+  serviceClaim();
   syncServer();
   renderLights();
   refreshScreen();

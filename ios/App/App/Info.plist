@@ -78,10 +78,14 @@
 	<dict>
 		<key>NSAllowsLocalNetworking</key>
 		<true/>
+		<key>NSAllowsArbitraryLoadsInWebContent</key>
+		<true/>
 	</dict>
-	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>Molbhav uses your location to find live stalls near you when you choose Location.</string>
 	<key>NSBluetoothAlwaysUsageDescription</key>
 	<string>Molbhav hears the Bluetooth beacons of stalls near you, so your agent can ask them. Your location is not shared for this scan.</string>
+	<key>NSBluetoothPeripheralUsageDescription</key>
+	<string>Molbhav hears the Bluetooth beacons of stalls near you, so your agent can ask them. Your location is not shared for this scan.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Molbhav uses your location to find live stalls near you when you choose Location.</string>
 </dict>
 </plist>
