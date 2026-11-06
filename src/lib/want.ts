@@ -154,17 +154,64 @@ export type MenuRow = {
   price: number;
 };
 
-/** Best menu row for a want line, or null. */
-export function matchMenu(items: MenuRow[], want: string): MenuRow | null {
-  const need = words(want);
-  if (!need.size) return null;
-  let best: MenuRow | null = null;
+/**
+ * How well a menu row fits a want line: "full" when it has every word of the line, "head" when it
+ * has the line's last word, the thing itself ("masala chai" → chai, "chicken biryani" → biryani).
+ * A row sharing only a describing word ("masala" in Masala Dosa) doesn't fit at all.
+ */
+export type MenuFit = "full" | "head";
+
+/** The best-fitting menu row for a want line, and how well it fits; null when none fits. */
+export function menuMatch(items: MenuRow[], want: string): { row: MenuRow; fit: MenuFit } | null {
+  const need = [...words(want)];
+  if (!need.length) return null;
+  const head = need[need.length - 1];
+  let best: { row: MenuRow; fit: MenuFit } | null = null;
   let bestScore = 0;
   for (const item of items) {
-    const score = [...words(`${item.name} ${item.words}`)].filter((w) => need.has(w)).length;
-    if (score > bestScore) [best, bestScore] = [item, score];
+    const has = words(`${item.name} ${item.words}`);
+    const hits = need.filter((w) => has.has(w)).length;
+    const fit: MenuFit | null = hits === need.length ? "full" : has.has(head) ? "head" : null;
+    if (!fit) continue;
+    // Full fits first; then more of the line's words; the first row wins a tie.
+    const score = (fit === "full" ? 100 : 0) + hits;
+    if (score > bestScore) [best, bestScore] = [{ row: item, fit }, score];
   }
-  return bestScore > 0 ? best : null;
+  return best;
+}
+
+/** Best menu row for a want line, or null. */
+export function matchMenu(items: MenuRow[], want: string): MenuRow | null {
+  return menuMatch(items, want)?.row ?? null;
+}
+
+/**
+ * The stalls to bargain with for these lines, one item each: whole-name matches before
+ * last-word ones ("chai" for "masala chai"), then in pool order (as heard, or nearest).
+ */
+export function rankStalls(lines: WantLine[], pool: MenuRow[], max = 5): HeardWant["stalls"] {
+  const byStall = new Map<string, MenuRow[]>();
+  for (const row of pool) byStall.set(row.stallId, [...(byStall.get(row.stallId) ?? []), row]);
+  const hits: { stall: HeardWant["stalls"][number]; full: boolean; at: number }[] = [];
+  for (const rows of byStall.values()) {
+    let best: ReturnType<typeof menuMatch> = null;
+    for (const line of lines) {
+      const m = menuMatch(rows, line.name);
+      if (m && (!best || (m.fit === "full" && best.fit !== "full"))) best = m;
+      if (best?.fit === "full") break;
+    }
+    if (!best) continue;
+    const { row } = best;
+    hits.push({
+      stall: { id: row.stallId, name: row.stallName, item: row.name },
+      full: best.fit === "full",
+      at: hits.length,
+    });
+  }
+  return hits
+    .sort((a, b) => Number(b.full) - Number(a.full) || a.at - b.at)
+    .slice(0, max)
+    .map((h) => h.stall);
 }
 
 export const rupees = (n: number) => `₹${n.toLocaleString("en-IN")}`;
@@ -173,6 +220,8 @@ export const rupees = (n: number) => `₹${n.toLocaleString("en-IN")}`;
 export type HeardWant = {
   /** Display chips, e.g. "2× Chai". */
   items: string[];
+  /** The order as menu lines, so the server can pick stalls again without asking Gemini. */
+  lines: WantLine[];
   budget: number | null;
   english: string;
   /** Open stalls that sell at least one asked item. */
@@ -208,8 +257,19 @@ export function parseHeard(raw: unknown): HeardWant | null {
       (Number.isInteger(budget) && (budget as number) > 0 && (budget as number) <= 1_000_000)
     ) ||
     !(h.english === "" || str(h.english, 400)) ||
+    !Array.isArray(h.lines) ||
+    h.lines.length < 1 ||
+    h.lines.length > 8 ||
+    !h.lines.every(
+      (l) =>
+        !!l &&
+        str((l as WantLine).name, 40) &&
+        Number.isInteger((l as WantLine).qty) &&
+        (l as WantLine).qty > 0 &&
+        (l as WantLine).qty <= 99,
+    ) ||
     !Array.isArray(h.stalls) ||
-    h.stalls.length > 20
+    h.stalls.length > 8
   )
     return null;
   const stalls: HeardWant["stalls"] = [];
@@ -220,6 +280,7 @@ export function parseHeard(raw: unknown): HeardWant | null {
   }
   return {
     items: h.items as string[],
+    lines: (h.lines as WantLine[]).map((l) => ({ name: l.name, qty: l.qty })),
     budget: budget as number | null,
     english: h.english as string,
     stalls,

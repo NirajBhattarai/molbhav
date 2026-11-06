@@ -16,10 +16,10 @@ import {
 import { wroteChat } from "@/lib/server/chat-cache";
 import { query } from "@/lib/server/db";
 import { seedHaggle } from "@/lib/server/negotiate";
-import { understandWant } from "@/lib/server/want";
+import { MAX_STALLS, pickStalls, scopeFrom, understandWant } from "@/lib/server/want";
 import { matchMenu, parseHeard, rupees, type MenuRow } from "@/lib/want";
 
-/** Home "Start bargaining": open a bargain against matching open stalls, then haggle. */
+/** Home "Start bargaining": open a bargain against the nearest few matching stalls, then haggle. */
 export async function createBargain(form: FormData) {
   const want = String(form.get("q") ?? "")
     .trim()
@@ -30,8 +30,14 @@ export async function createBargain(form: FormData) {
   const user = await me();
   await ensureUser(user);
 
-  // The sheet already understood this order; only ask again if what it sent doesn't parse.
-  const heard = parseHeard(form.get("heard")) ?? (await understandWant(want, buyerLang));
+  const scope = scopeFrom(form);
+  // The sheet already understood this order; only ask again if what it sent doesn't parse. The
+  // stalls are always picked here: the browser's list is never trusted, and the phone may know
+  // where it is by now even if it didn't when the order was read.
+  const sent = parseHeard(form.get("heard"));
+  const heard = sent
+    ? { ...sent, stalls: await pickStalls(sent.lines, scope) }
+    : await understandWant(want, buyerLang, scope);
   const title = heard.items.slice(0, 3).join(", ") || want.slice(0, 60);
   const stalls = await matchesFor(heard.english || want, heard.stalls);
 
@@ -81,7 +87,7 @@ async function matchesFor(
       stallLang: full.lang,
     });
   }
-  return [...byStall.values()].slice(0, 8);
+  return [...byStall.values()].slice(0, MAX_STALLS);
 }
 
 /** Buyer agrees to the held price on this stall. */
