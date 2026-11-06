@@ -10,8 +10,10 @@ import {
   isBargainId,
   me,
   openBargain,
+  refreshChat,
   type OpenStallMatch,
 } from "@/lib/server/bargains";
+import { wroteChat } from "@/lib/server/chat-cache";
 import { query } from "@/lib/server/db";
 import { seedHaggle } from "@/lib/server/negotiate";
 import { understandWant } from "@/lib/server/want";
@@ -89,15 +91,15 @@ export async function agreeOffer(bargainId: string, stallId: string) {
 
   // One statement checks and sets, so a double tap can't agree twice. The partial unique index
   // `offers_one_deal` rejects a second deal on the same bargain from another stall's chat.
-  let won: { current: number }[];
+  let won: { current: number; version: number }[];
   try {
-    won = await query<{ current: number }>(
+    won = await query<{ current: number; version: number }>(
       `UPDATE offers o SET status = 'agreed', version = o.version + 1, updated_at = now()
        FROM bargains b
        WHERE b.id = o.bargain_id AND b.buyer_id = $3
          AND o.bargain_id = $1::uuid AND o.stall_id = $2
          AND o.status = 'haggling' AND o.current IS NOT NULL
-       RETURNING o.current`,
+       RETURNING o.current, o.version`,
       [bargainId, stallId, user.id],
     );
   } catch (err) {
@@ -106,6 +108,7 @@ export async function agreeOffer(bargainId: string, stallId: string) {
   }
   if (!won.length) return;
   const price = won[0].current;
+  await wroteChat(bargainId, stallId, won[0].version);
 
   await addLine({
     bargainId,
@@ -127,13 +130,14 @@ export async function agreeOffer(bargainId: string, stallId: string) {
   });
 
   // Decline the other offers still going. A seed still running on one of them sees it and stops.
-  const others = await query<{ stall_id: string; current: number | null }>(
+  const others = await query<{ stall_id: string; current: number | null; version: number }>(
     `UPDATE offers SET status = 'declined', version = version + 1, updated_at = now()
      WHERE bargain_id = $1::uuid AND stall_id <> $2 AND status = 'haggling'
-     RETURNING stall_id, current`,
+     RETURNING stall_id, current, version`,
     [bargainId, stallId],
   );
   for (const o of others) {
+    await wroteChat(bargainId, o.stall_id, o.version);
     await addLine({
       bargainId,
       stallId: o.stall_id,
@@ -144,6 +148,11 @@ export async function agreeOffer(bargainId: string, stallId: string) {
     });
   }
 
+  // Put the finished chats back in Redis so the next screen reads them from there.
+  await Promise.all(
+    [stallId, ...others.map((o) => o.stall_id)].map((s) => refreshChat(bargainId, s)),
+  );
+
   revalidatePath(`/bargains/${bargainId}`);
   revalidatePath(`/bargains/${bargainId}/${stallId}`);
 }
@@ -152,13 +161,18 @@ export async function agreeOffer(bargainId: string, stallId: string) {
 export async function markPaid(bargainId: string, stallId: string) {
   if (!isBargainId(bargainId)) return;
   const user = await me();
-  await query(
+  const [paid] = await query<{ version: number }>(
     `UPDATE offers o SET status = 'paid', version = o.version + 1, updated_at = now()
      FROM bargains b
      WHERE b.id = o.bargain_id AND b.buyer_id = $3
-       AND o.bargain_id = $1::uuid AND o.stall_id = $2 AND o.status = 'agreed'`,
+       AND o.bargain_id = $1::uuid AND o.stall_id = $2 AND o.status = 'agreed'
+     RETURNING o.version`,
     [bargainId, stallId, user.id],
   );
+  if (paid) {
+    await wroteChat(bargainId, stallId, paid.version);
+    await refreshChat(bargainId, stallId);
+  }
   revalidatePath(`/bargains/${bargainId}`);
   revalidatePath(`/bargains/${bargainId}/${stallId}`);
 }

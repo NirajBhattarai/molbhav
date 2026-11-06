@@ -3,6 +3,7 @@ import {
   addLine,
   claimSeed,
   isBargainId,
+  refreshChat,
   setOffer,
   type OpenStallMatch,
 } from "@/lib/server/bargains";
@@ -21,9 +22,10 @@ export async function seedHaggle(
 ) {
   await Promise.all(
     stalls.map((s) =>
-      seedOne(bargainId, s, budget).catch((err) =>
-        console.error("seedHaggle", bargainId, s.stallId, err),
-      ),
+      seedOne(bargainId, s, budget)
+        // The haggle is done: put the whole chat in Redis for the buyer's next look.
+        .then(() => refreshChat(bargainId, s.stallId))
+        .catch((err) => console.error("seedHaggle", bargainId, s.stallId, err)),
     ),
   );
 }

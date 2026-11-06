@@ -1,4 +1,5 @@
 import "server-only";
+import { fillChat, readChat, wroteChat, type CachedChat } from "@/lib/server/chat-cache";
 import { query } from "@/lib/server/db";
 import { ensureUser, me, type Me } from "@/lib/server/shop";
 import type { Lang } from "@/lib/languages";
@@ -149,15 +150,30 @@ async function offersFor(bargainIds: string[]) {
   return map;
 }
 
-/** Chat for one stall offer in a bargain the buyer owns. */
+/** Chat for one stall offer in a bargain the buyer owns. Redis first, then Postgres. */
 export async function myChat(
   user: Me,
   bargainId: string,
   stallId: string,
 ): Promise<ChatView | null> {
   if (!isBargainId(bargainId)) return null;
+  const hit = await readChat<ChatView>(bargainId, stallId);
+  const found = hit ?? (await loadChat(bargainId, stallId));
+  if (!found) return null;
+  if (!hit) await fillChat(bargainId, stallId, found);
+  return found.buyerId === user.id ? found.chat : null;
+}
+
+/** Reads the chat again from Postgres and copies it into Redis: call after a whole step. */
+export async function refreshChat(bargainId: string, stallId: string) {
+  const fresh = await loadChat(bargainId, stallId);
+  if (fresh) await fillChat(bargainId, stallId, fresh);
+}
+
+async function loadChat(bargainId: string, stallId: string): Promise<CachedChat<ChatView> | null> {
   const [row] = await query<{
     bargain_id: string;
+    buyer_id: string;
     title: string;
     budget: number | null;
     stall_id: string;
@@ -167,16 +183,17 @@ export async function myChat(
     status: OfferStatus;
     asked: number | null;
     current: number | null;
+    version: number;
   }>(
-    `SELECT b.id AS bargain_id, b.title, b.budget,
+    `SELECT b.id AS bargain_id, b.buyer_id, b.title, b.budget,
             o.stall_id, s.name AS stall_name, s.lang AS stall_lang,
-            i.name AS item_name, o.status, o.asked, o.current
+            i.name AS item_name, o.status, o.asked, o.current, o.version
      FROM bargains b
      JOIN offers o ON o.bargain_id = b.id
      JOIN stalls s ON s.id = o.stall_id
      JOIN stall_items i ON i.id = o.item_id
-     WHERE b.id = $1::uuid AND b.buyer_id = $2 AND o.stall_id = $3`,
-    [bargainId, user.id, stallId],
+     WHERE b.id = $1::uuid AND o.stall_id = $2`,
+    [bargainId, stallId],
   );
   if (!row) return null;
 
@@ -205,23 +222,27 @@ export async function myChat(
         : null;
 
   return {
-    bargainId: row.bargain_id,
-    title: row.title,
-    budget: row.budget,
-    stall: { id: row.stall_id, name: row.stall_name, lang: row.stall_lang },
-    item: row.item_name,
-    status,
-    asked: row.asked,
-    current: row.current,
-    turns: turns.map((t) => ({
-      id: t.id,
-      speaker: t.speaker,
-      msg: t.msg,
-      vars: t.vars,
-      text: t.text,
-      amount: t.current,
-    })),
-    next,
+    buyerId: row.buyer_id,
+    version: row.version,
+    chat: {
+      bargainId: row.bargain_id,
+      title: row.title,
+      budget: row.budget,
+      stall: { id: row.stall_id, name: row.stall_name, lang: row.stall_lang },
+      item: row.item_name,
+      status,
+      asked: row.asked,
+      current: row.current,
+      turns: turns.map((t) => ({
+        id: t.id,
+        speaker: t.speaker,
+        msg: t.msg,
+        vars: t.vars,
+        text: t.text,
+        amount: t.current,
+      })),
+      next,
+    },
   };
 }
 
@@ -275,13 +296,20 @@ type LineInput = {
 
 /** Adds one chat line. Returns false when `ifHaggling` and the offer has moved on. */
 export async function addLine(input: LineInput): Promise<boolean> {
-  const rows = await query<{ id: string }>(
-    `INSERT INTO turns (bargain_id, stall_id, speaker, msg, vars, text, status, current)
-     SELECT $1::uuid, $2, $3, $4, $5::jsonb, $6, $7, $8
-     WHERE NOT $9::boolean OR EXISTS (
-       SELECT 1 FROM offers
-       WHERE bargain_id = $1::uuid AND stall_id = $2 AND status = 'haggling')
-     RETURNING id::text`,
+  // The insert and the version bump are one statement, so the cache always sees the new line.
+  const rows = await query<{ version: number }>(
+    `WITH line AS (
+       INSERT INTO turns (bargain_id, stall_id, speaker, msg, vars, text, status, current)
+       SELECT $1::uuid, $2, $3, $4, $5::jsonb, $6, $7, $8
+       WHERE NOT $9::boolean OR EXISTS (
+         SELECT 1 FROM offers
+         WHERE bargain_id = $1::uuid AND stall_id = $2 AND status = 'haggling')
+       RETURNING bargain_id, stall_id
+     )
+     UPDATE offers o SET version = o.version + 1
+     FROM line
+     WHERE o.bargain_id = line.bargain_id AND o.stall_id = line.stall_id
+     RETURNING o.version`,
     [
       input.bargainId,
       input.stallId,
@@ -294,7 +322,9 @@ export async function addLine(input: LineInput): Promise<boolean> {
       input.ifHaggling ?? false,
     ],
   );
-  return rows.length > 0;
+  if (!rows.length) return false;
+  await wroteChat(input.bargainId, input.stallId, rows[0].version);
+  return true;
 }
 
 /** Updates an offer. Returns false when `ifHaggling` and the offer has moved on. */
@@ -328,7 +358,9 @@ export async function setOffer(input: {
       input.ifHaggling ?? false,
     ],
   );
-  return rows.length > 0;
+  if (!rows.length) return false;
+  await wroteChat(input.bargainId, input.stallId, rows[0].version);
+  return true;
 }
 
 /**
@@ -352,6 +384,7 @@ export async function claimSeed(bargainId: string, stallId: string): Promise<boo
       stallId,
     ]);
   }
+  await wroteChat(bargainId, stallId, row.version);
   return true;
 }
 
