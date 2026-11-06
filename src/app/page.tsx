@@ -1,29 +1,86 @@
+import { connection } from "next/server";
 import { Suspense } from "react";
-import { MarketAddressCard } from "@/components/app/market-address-card";
 import { ProfileLink } from "@/components/app/profile-link";
-import { SwitchToShopkeeper } from "@/components/app/switch-to-shopkeeper";
+import { Screen } from "@/components/app/screen";
+import { WantForm } from "@/components/app/want-form";
+import { BlockPrint } from "@/components/brand/block-print";
 import { Logo } from "@/components/brand/logo";
+import { LANG, isLang } from "@/lib/languages";
+import { stallsNear } from "@/lib/server/shop";
 
 export default function Home() {
   return (
-    <main className="mx-auto flex min-h-dvh w-full max-w-md flex-col gap-6 px-4 pt-[max(1.5rem,env(safe-area-inset-top))] pb-[max(1.5rem,env(safe-area-inset-bottom))]">
-      <header className="flex items-center justify-between gap-3">
+    <Screen>
+      <header className="mb-4 flex h-11 items-center justify-between gap-3">
         <Logo />
         <Suspense fallback={null}>
           <ProfileLink />
         </Suspense>
       </header>
-      <section className="rounded-2xl border border-border bg-card p-5">
-        <h1 className="font-display text-2xl font-bold tracking-tight">Buyer home</h1>
-        <p className="mt-2 text-sm text-muted-foreground">
-          Bargaining comes next. Shopkeepers register their stall under{" "}
-          <Suspense fallback={<span className="font-medium text-foreground">I run a stall</span>}>
-            <SwitchToShopkeeper>I run a stall</SwitchToShopkeeper>
+
+      <section className="relative animate-[rise_400ms_var(--ease-out)] overflow-hidden rounded-2xl bg-hero p-5 text-hero-foreground">
+        <BlockPrint className="pointer-events-none absolute inset-0 text-secondary opacity-15" />
+        <div className="relative">
+          <Suspense fallback={<p className="h-5" />}>
+            <OpenNearYou />
           </Suspense>
-          .
-        </p>
+          <h1 className="mt-3 font-display text-3xl leading-tight font-bold tracking-tight">
+            Say what you want. Your agent bargains for you.
+          </h1>
+          <WantForm />
+        </div>
       </section>
-      <MarketAddressCard />
-    </main>
+
+      <h2 className="mt-8 mb-3 font-display text-lg font-semibold">Stalls near you</h2>
+      <Suspense fallback={<div className="h-72 animate-pulse rounded-xl bg-muted" />}>
+        <Stalls />
+      </Suspense>
+    </Screen>
+  );
+}
+
+async function OpenNearYou() {
+  await connection();
+  const open = (await stallsNear()).filter((s) => s.open).length;
+  return (
+    <p className="flex h-5 items-center gap-2 text-sm font-medium text-hero-success">
+      <span className="relative flex size-2.5">
+        <span className="absolute inset-0 rounded-full bg-hero-success motion-safe:animate-[radar_1.6s_var(--ease-out)_infinite]" />
+        <span className="relative size-2.5 rounded-full bg-hero-success" />
+      </span>
+      {open} stall{open === 1 ? "" : "s"} open near you
+    </p>
+  );
+}
+
+async function Stalls() {
+  await connection();
+  const stalls = await stallsNear();
+  if (!stalls.length) {
+    return (
+      <p className="rounded-xl border border-border bg-card p-4 text-sm text-muted-foreground">
+        No stalls are set up yet. When shopkeepers open, they’ll show up here.
+      </p>
+    );
+  }
+  return (
+    <ul className="divide-y divide-border rounded-xl border border-border bg-card">
+      {stalls.map((s) => {
+        const lang = isLang(s.lang) ? LANG[s.lang].english : s.lang;
+        return (
+          <li key={s.id} className={`flex items-center gap-3 p-4 ${s.open ? "" : "opacity-60"}`}>
+            <span className="grid size-10 shrink-0 place-items-center rounded-full bg-muted font-display font-bold text-primary">
+              {s.name[0]}
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="block truncate font-medium">{s.name}</span>
+              <span className="block truncate text-sm text-muted-foreground">
+                {s.open ? "Open" : "Closed"} · Speaks {lang}
+              </span>
+            </span>
+          </li>
+        );
+      })}
+    </ul>
   );
 }

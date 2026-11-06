@@ -39,9 +39,46 @@ export async function me(): Promise<Me> {
 
 export async function ensureUser(user: Me) {
   await query(
-    "INSERT INTO users (id, email) VALUES ($1, $2) ON CONFLICT (id) DO UPDATE SET email = EXCLUDED.email",
+    `INSERT INTO users (id, email) VALUES ($1, $2)
+     ON CONFLICT (id) DO UPDATE SET email = EXCLUDED.email`,
     [user.id, user.email],
   );
+}
+
+/** An open (or nearby-listed) stall for the buyer home. */
+export type NearbyStall = {
+  id: string;
+  name: string;
+  lang: Lang;
+  open: boolean;
+  agentId: string | null;
+};
+
+/**
+ * Stalls buyers can see: open ones first, then recently updated closed shells with a name.
+ * Full geo ranking comes later; for now it's the market directory.
+ */
+export async function stallsNear(): Promise<NearbyStall[]> {
+  const rows = await query<{
+    id: string;
+    name: string;
+    lang: Lang;
+    is_open: boolean;
+    agent_id: string | null;
+  }>(
+    `SELECT id, name, lang, is_open, agent_id FROM stalls
+     WHERE name <> '' AND upi_id IS NOT NULL AND lat IS NOT NULL AND lng IS NOT NULL
+       AND EXISTS (SELECT 1 FROM stall_items i WHERE i.stall_id = stalls.id AND i.active)
+     ORDER BY is_open DESC, updated_at DESC
+     LIMIT 40`,
+  );
+  return rows.map((r) => ({
+    id: r.id,
+    name: r.name,
+    lang: r.lang,
+    open: r.is_open,
+    agentId: r.agent_id,
+  }));
 }
 
 /** Stall shell + active menu for the shop screen. */
