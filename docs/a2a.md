@@ -97,9 +97,9 @@ the shop screen.
 
 In-app buyer bargains (`seedHaggle`) use the buyer brain in `src/lib/server/buyer-agent.ts`
 through an A2A client ([`src/lib/server/a2a/client.ts`](../src/lib/server/a2a/client.ts)):
-card → `SendMessage` (`hello` / `rfq` / `counter` / `accept`) against each stall agent, with
-optional `shopperSays` wording. Chat still lands in `turns` / `offers`. Base URL is
-`NEXT_PUBLIC_APP_URL` (same public origin as stall cards).
+card → `SendStreamingMessage` over SSE (`hello` / `rfq` / `counter` / `accept`) against each
+stall agent, with optional `shopperSays` wording. Chat still lands in `turns` / `offers`.
+Base URL is `NEXT_PUBLIC_APP_URL` (same public origin as stall cards).
 
 ## Spec references
 
