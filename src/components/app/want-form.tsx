@@ -76,12 +76,42 @@ export function WantForm() {
   );
 }
 
+/**
+ * The buyer's position, for finding stalls in walking distance. In location mode it asks (the
+ * buyer chose to search by location, and the sheet is open because they want to order); in
+ * Bluetooth mode it is only a fallback, so it's used only if the buyer already allowed it.
+ */
+function useHere(ask: boolean) {
+  const [here, setHere] = useState<{ lat: number; lng: number } | null>(null);
+  useEffect(() => {
+    if (!("geolocation" in navigator)) return;
+    let live = true;
+    const locate = () =>
+      navigator.geolocation.getCurrentPosition(
+        (pos) => live && setHere({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+        () => {},
+        { maximumAge: 120_000, timeout: 10_000 },
+      );
+    if (ask) locate();
+    else
+      navigator.permissions
+        ?.query({ name: "geolocation" })
+        .then((p) => p.state === "granted" && locate())
+        .catch(() => {});
+    return () => {
+      live = false;
+    };
+  }, [ask]);
+  return here;
+}
+
 function WantSheet({ onClose }: { onClose: () => void }) {
   const t = useT();
   const tx = useTx();
   const lang = useLang();
   const discovery = useDiscoveryMode();
   const nearby = useNearbyStalls(discovery === "nearby");
+  const here = useHere(discovery === "location");
   const form = useRef<HTMLFormElement>(null);
   const [order, setOrder] = useState("");
   const [listening, setListening] = useState(false);
@@ -223,15 +253,32 @@ function WantSheet({ onClose }: { onClose: () => void }) {
     rec.start();
   }
 
-  function startSearch() {
+  /** Open the bargain with the stalls found. On success the action redirects to it. */
+  async function bargain() {
     if (!heard) return;
+    const fd = form.current ? new FormData(form.current) : new FormData();
+    fd.set("q", order.trim() || heard.english);
+    fd.set("lang", lang);
+    fd.set("heard", JSON.stringify(heard));
+    setError("");
     setSearching(true);
-    setCountdown(null);
-    window.setTimeout(() => {
+    // Only a failure comes back here.
+    await createBargain(fd).catch(() => {
       if (!openRef.current) return;
       setSearching(false);
-      setSearched(true);
-    }, 600);
+      setError("Couldn’t start bargaining. Try again.");
+    });
+  }
+
+  /**
+   * The countdown ran out (or the buyer tapped Start): the stalls were found while reading the
+   * order, so go straight to bargaining. Only "no stall sells that" stops here, to say so.
+   */
+  function startSearch() {
+    if (!heard) return;
+    setCountdown(null);
+    if (heard.stalls.length) void bargain();
+    else setSearched(true);
   }
 
   const searchNow = useEffectEvent(() => startSearch());
@@ -255,33 +302,25 @@ function WantSheet({ onClose }: { onClose: () => void }) {
     e.preventDefault();
     const q = order.trim();
     if (!q || listening || reading || searching) return;
-    if (heard && searched) {
-      if (!heard.stalls.length) return;
-      const fd = form.current ? new FormData(form.current) : new FormData();
-      fd.set("q", q);
-      fd.set("lang", lang);
-      fd.set("heard", JSON.stringify(heard));
-      setSearching(true);
-      // On success the action redirects to the bargain. Only a failure comes back here.
-      await createBargain(fd).catch(() => setSearching(false));
-      return;
-    }
-    if (heard && heard.english === q) {
+    if (heard && (searched || heard.english === q)) {
       startSearch();
       return;
     }
     await read(q);
   }
 
+  // Nothing to start when no stall sells it: the buyer changes the order instead.
+  const nothingSells = searched && heard !== null && !heard.stalls.length;
   const showStart =
-    !canListen || (!!order.trim() && !listening && !reading && countdown === null && !searching);
+    !nothingSells &&
+    (!canListen || (!!order.trim() && !listening && !reading && countdown === null && !searching));
 
   return (
     <Sheet
       onClose={onClose}
       title={t("What do you want?")}
       description={t(
-        "Say it like you would to a shopkeeper. Your agent bargains with every open stall.",
+        "Say it like you would to a shopkeeper. Your agent bargains with a few stalls nearby.",
       )}
       footer={
         showStart || searching ? (
@@ -294,7 +333,7 @@ function WantSheet({ onClose }: { onClose: () => void }) {
             {searching || reading ? (
               <>
                 <Loader2 className="size-5 animate-spin" aria-hidden />
-                {reading ? t("Reading your order…") : t("Finding stalls…")}
+                {reading ? t("Reading your order…") : t("Starting the bargain…")}
               </>
             ) : (
               <>
@@ -327,6 +366,12 @@ function WantSheet({ onClose }: { onClose: () => void }) {
         </p>
         <input type="hidden" name="discovery" value={discovery} />
         <input type="hidden" name="lang" value={lang} />
+        {here && (
+          <>
+            <input type="hidden" name="lat" value={here.lat} />
+            <input type="hidden" name="lng" value={here.lng} />
+          </>
+        )}
         {nearby.agents.length > 0 && (
           <input type="hidden" name="agents" value={nearby.agents.join(",")} />
         )}
@@ -423,17 +468,12 @@ function WantSheet({ onClose }: { onClose: () => void }) {
                 </span>
               </div>
             )}
-            {searched && (
+            {searched && !heard.stalls.length && (
               <p role="status" className="text-sm text-pretty text-muted-foreground">
-                {heard.stalls.length
-                  ? t("Found {n} open stalls: {names}. Full bargaining comes next.", {
-                      n: heard.stalls.length,
-                      names: heard.stalls.map((s) => s.name).join(", "),
-                    })
-                  : t(
-                      "Heard “{order}”, but no open stall sells that yet. Ask a shop to open, or try other words.",
-                      { order: heard.english },
-                    )}
+                {t(
+                  "Heard “{order}”, but no open stall sells that yet. Ask a shop to open, or try other words.",
+                  { order: heard.english },
+                )}
               </p>
             )}
           </div>

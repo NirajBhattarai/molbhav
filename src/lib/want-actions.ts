@@ -2,7 +2,7 @@
 
 import { isLang } from "@/lib/languages";
 import { me } from "@/lib/server/shop";
-import { understandWant } from "@/lib/server/want";
+import { scopeFrom, understandWant } from "@/lib/server/want";
 import type { HeardWant } from "@/lib/want";
 
 /** What the buyer's agent understood of an order, before searching stalls. */
@@ -15,7 +15,7 @@ export async function readWant(form: FormData): Promise<HeardWant | { error: str
   const lang = isLang(langRaw) ? langRaw : "en";
   if (!want) return { error: "Say or type what you want." };
   try {
-    const heard = await understandWant(want, lang);
+    const heard = await understandWant(want, lang, scopeFrom(form));
     if (!heard.items.length) {
       return {
         error: `Your agent didn’t catch anything to buy in “${want}”. Try “2 chai and 2 samosa”.`,
