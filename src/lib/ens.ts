@@ -104,6 +104,7 @@ export function stallRecords(s: StallRecordInput): StallRecords {
     protocol: "a2a/1.0",
     card: s.cardUrl,
     bargain: "rfq, counter, accept; prices are Ed25519-signed offers",
+    pay: "x402 exact on hedera:testnet in USDC (0.0.429274), to this name's Hedera address",
   });
   return {
     texts: [

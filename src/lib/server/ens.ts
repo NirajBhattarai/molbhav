@@ -27,6 +27,7 @@ import { permissionedRegistryGetResolverSnippet } from "@ensdomains/ensjs-abi/v2
 import { encodeResolverSetterScope, resolverMulticallParameters } from "@ensdomains/ensjs/utils/v2";
 import {
   ENS_PARENT_DEFAULT,
+  HEDERA_TESTNET_COIN,
   KEY,
   ensName,
   OWNER_EDITS,
@@ -270,6 +271,15 @@ export async function syncStallName(stallId: string): Promise<void> {
 export function syncStallNameAfter(stallId: string) {
   if (!ensConfigured()) return;
   after(() => syncStallName(stallId).catch((e) => console.error("ens sync", stallId, e)));
+}
+
+/** Where a stall is paid on Hedera testnet, read from its ENS name (ENSIP-11 coin type 296). */
+export async function hederaAddressFromEns(name: string): Promise<`0x${string}` | null> {
+  const address = await reader().getEnsAddress({
+    name: normalize(name),
+    coinType: BigInt(HEDERA_TESTNET_COIN),
+  });
+  return address ?? null;
 }
 
 /** A stall agent's Agent Card URL, read from its ENS name (agent-endpoint[a2a]). */

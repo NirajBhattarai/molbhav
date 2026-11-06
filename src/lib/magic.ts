@@ -7,7 +7,7 @@ export type HederaNetwork = "testnet" | "mainnet";
 /** Magic with its Hedera extension: the wallet signs Hedera transactions in the browser. */
 export type MolbhavMagic = MagicType & {
   hedera: {
-    getPublicKey: () => Promise<{ publicKeyDer?: string } | string | null>;
+    getPublicKey: () => Promise<{ publicKeyDer?: string; accountId?: string } | string | null>;
     sign: (message: Uint8Array) => Promise<unknown>;
   };
 };
