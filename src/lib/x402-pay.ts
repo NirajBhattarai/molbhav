@@ -7,6 +7,8 @@ import {
   getMagic,
   hbarBalance,
   magicHederaAccount,
+  mirrorNode,
+  type HederaNetwork,
   type MolbhavMagic,
 } from "@/lib/magic";
 import { HEDERA_MAINNET, isHederaId } from "@/lib/x402";
@@ -44,8 +46,23 @@ class NoFunds extends Error {
   }
 }
 
-/** Testnet nodes the signed transfer may be submitted through (each gets its own signature). */
-const NODES = { testnet: [3, 4], mainnet: [3, 4] } as const;
+/**
+ * Every consensus node the signed transfer may go to. Hedera only accepts a transaction at a node
+ * it names, so pinning two nodes made settlement fail whenever the facilitator found both busy
+ * ("All nodes are unhealthy"). Like the reference x402 client, sign for the whole network: the
+ * live node list from the mirror node, or Hedera's long-standing nodes if that can't be read.
+ */
+async function nodeIds(network: HederaNetwork): Promise<number[]> {
+  const fallback = [3, 4, 5, 6, 7, 8, 9];
+  const res = await fetch(`${mirrorNode(network)}/api/v1/network/nodes?limit=25`).catch(() => null);
+  const nodes = res?.ok
+    ? ((await res.json()) as { nodes?: { node_account_id?: string }[] }).nodes
+    : undefined;
+  const ids = (nodes ?? [])
+    .map((n) => Number(n.node_account_id?.split(".")[2]))
+    .filter((n) => Number.isInteger(n) && n > 0);
+  return ids.length ? ids.slice(0, 10) : fallback; // one Magic signature per node, so cap it
+}
 
 function bytesOf(sig: unknown): Uint8Array {
   if (sig instanceof Uint8Array) return sig;
@@ -107,7 +124,9 @@ async function signedTransfer(m: MolbhavMagic, req: PaymentRequirements): Promis
     tx.addTokenTransfer(token, payTo, amount);
   }
   tx.setTransactionId(TransactionId.generate(AccountId.fromString(feePayer)))
-    .setNodeAccountIds(NODES[mainnet ? "mainnet" : "testnet"].map((n) => new AccountId(n)))
+    .setNodeAccountIds(
+      (await nodeIds(mainnet ? "mainnet" : "testnet")).map((n) => new AccountId(n)),
+    )
     .setTransactionValidDuration(Math.min(req.maxTimeoutSeconds, 180))
     .freeze();
   await tx.signWith(publicKey, async (body) => bytesOf(await m.hedera.sign(body)));
