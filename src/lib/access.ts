@@ -25,7 +25,12 @@ export function canVisit(role: Role, path: string) {
  * Where a request should go instead, or null to let it through:
  * signed out → /sign-in, no role yet → /role, another role's screen → your own home.
  */
+/** Public A2A discovery — Agent Cards and extension specs, no sign-in. */
+const isPublicA2a = (path: string) =>
+  path === "/a2a" || path.startsWith("/a2a/") || path === "/.well-known/agent-card.json";
+
 export function redirectFor(path: string, signedIn: boolean, role: Role | null): string | null {
+  if (isPublicA2a(path)) return null;
   if (!signedIn) return path === "/sign-in" ? null : "/sign-in";
   if (!role) return path === "/role" ? null : "/role";
   if (path === "/sign-in") return roleHome[role];
