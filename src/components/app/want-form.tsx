@@ -13,6 +13,7 @@ import { ArrowRight, Bluetooth, Loader2, MapPin, Mic, Square } from "lucide-reac
 import { Chip } from "@/components/ui/chip";
 import { Sheet } from "@/components/ui/sheet";
 import { action, focusRing } from "@/components/ui/styles";
+import { useNearbyStalls } from "@/lib/ble/scan";
 import { useLang } from "@/lib/app-lang";
 import { useDiscoveryMode } from "@/lib/discovery";
 import { LANG } from "@/lib/languages";
@@ -76,6 +77,8 @@ export function WantForm() {
 function WantSheet({ onClose }: { onClose: () => void }) {
   const lang = useLang();
   const discovery = useDiscoveryMode();
+  // Scan BLE stall beacons while this sheet is open and discovery is "nearby".
+  const nearby = useNearbyStalls(discovery === "nearby");
   const form = useRef<HTMLFormElement>(null);
   const [order, setOrder] = useState("");
   const [listening, setListening] = useState(false);
@@ -289,16 +292,28 @@ function WantSheet({ onClose }: { onClose: () => void }) {
       <form id="want-form" ref={form} onSubmit={onSubmit} className="grid gap-4">
         <p role="status" className="flex items-center gap-2 text-sm text-muted-foreground">
           {discovery === "nearby" ? (
-            <Bluetooth className="size-4 shrink-0 text-primary" aria-hidden />
+            <Bluetooth
+              className={`size-4 shrink-0 ${nearby.agents.length ? "text-primary" : ""}`}
+              aria-hidden
+            />
           ) : (
             <MapPin className="size-4 shrink-0 text-primary" aria-hidden />
           )}
           {discovery === "nearby"
-            ? "Finding stalls via nearby agents (change in Profile)."
+            ? nearby.native
+              ? nearby.blocked
+                ? "Turn on Bluetooth to find stalls nearby."
+                : nearby.agents.length
+                  ? `Stalls heard nearby: ${nearby.agents.length}`
+                  : "Looking for stalls nearby…"
+              : "Finding stalls via nearby agents (change in Profile). Open the iPhone app to hear beacons."
             : "Finding stalls by location (change in Profile)."}
         </p>
         <input type="hidden" name="discovery" value={discovery} />
         <input type="hidden" name="lang" value={lang} />
+        {nearby.agents.length > 0 && (
+          <input type="hidden" name="agents" value={nearby.agents.join(",")} />
+        )}
 
         {canListen && (
           <div className="grid justify-items-center gap-2">

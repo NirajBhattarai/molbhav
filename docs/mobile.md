@@ -3,12 +3,18 @@
 The iPhone app is a [Capacitor](https://capacitorjs.com) shell around the deployed site, so pages, API
 routes and secrets stay on the server. A deploy reaches phones on their next launch.
 
-| What                         | Where                          |
-| ---------------------------- | ------------------------------ |
-| The site the app loads       | `capacitor.config.ts`          |
-| The Xcode project            | `ios/`                         |
-| Page shown when it's offline | `capacitor/www/index.html`     |
-| App icon + splash            | `ios/App/App/Assets.xcassets/` |
+Its native jobs today: **Bluetooth LE** scanning for stall-sign beacons (Safari can’t do that), and the
+usual camera / mic permissions for UPI QR and spoken orders.
+
+| What                         | Where                              |
+| ---------------------------- | ---------------------------------- |
+| The site the app loads       | `capacitor.config.ts`              |
+| The Xcode project            | `ios/`                             |
+| Page shown when it's offline | `capacitor/www/index.html`         |
+| App icon + splash            | `ios/App/App/Assets.xcassets/`     |
+| Beacon format (firmware)     | `firmware/stall-sign/BEACON.md`    |
+| Parse a beacon               | `src/lib/ble/beacon.ts`            |
+| Scan while ordering          | `src/lib/ble/scan.ts` → Want sheet |
 
 ## Running it
 
@@ -28,3 +34,13 @@ developer in **Settings → General → VPN & Device Management**. A free Apple 
 7 days; run it again from Xcode.
 
 Sign-in needs the page's address allowed in the Magic dashboard, for `npm run ios:dev` as well.
+
+## Finding nearby stalls (BLE)
+
+1. Profile → discovery set to **Nearby agents** (default).
+2. Open **Speak your order**. The app scans for adverts named `MolbhavA-<agent id>` / company `0x0BAB`
+   (see `BEACON.md`).
+3. Open or in-deal signs are listed as “Stalls heard nearby: N”. Their agent ids are posted with the
+   order as `agents` so bargaining can ask those stalls first — no market search needed when beacons
+   are heard.
+4. The iOS Simulator has no Bluetooth; use a real iPhone next to a flashing stall sign.

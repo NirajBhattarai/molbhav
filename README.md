@@ -15,6 +15,17 @@
                               Deal  or  No deal
 ```
 
+## Finding stalls
+
+Buyers pick how their agent finds stalls (Profile):
+
+1. **Nearby agents (default):** the iPhone app scans Bluetooth LE for stall-sign beacons
+   (`MolbhavA-<agent id>`, company `0x0BAB` — see [firmware/stall-sign/BEACON.md](firmware/stall-sign/BEACON.md)).
+   Open signs the phone hears are asked first; no market search needed when beacons are present.
+2. **Location:** find open stalls near the buyer’s pin (when shared).
+
+iPhone shell: [docs/mobile.md](docs/mobile.md). Stall sign firmware: [firmware/stall-sign/README.md](firmware/stall-sign/README.md).
+
 ## Design
 
 - Colour system: [docs/colors.md](docs/colors.md)
