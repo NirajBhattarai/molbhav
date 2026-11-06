@@ -59,9 +59,16 @@ async function matchesFor(
   heardStalls: { id: string; item: string }[],
 ): Promise<OpenStallMatch[]> {
   if (!heardStalls.length) return [];
-  const rows = await query<MenuRow & { lowest: number; style: "friendly" | "firm"; lang: Lang }>(
+  const rows = await query<
+    MenuRow & {
+      lowest: number;
+      style: "friendly" | "firm";
+      lang: Lang;
+      agentId: string | null;
+    }
+  >(
     `SELECT i.id, i.stall_id AS "stallId", s.name AS "stallName", i.name, i.words, i.price,
-            i.lowest, s.style, s.lang
+            i.lowest, s.style, s.lang, s.agent_id AS "agentId"
      FROM stall_items i
      JOIN stalls s ON s.id = i.stall_id
      WHERE i.active AND s.is_open AND s.id = ANY($1::text[])`,
@@ -78,6 +85,7 @@ async function matchesFor(
     if (!full) continue;
     byStall.set(id, {
       stallId: id,
+      agentId: full.agentId,
       itemId: full.id,
       itemName: full.name,
       price: full.price,

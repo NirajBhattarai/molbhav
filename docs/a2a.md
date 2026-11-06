@@ -96,8 +96,10 @@ back to catalog notes. Accepted outside deals are stored as `bargains.source = '
 the shop screen.
 
 In-app buyer bargains (`seedHaggle`) use the buyer brain in `src/lib/server/buyer-agent.ts`
-against a local channel that applies the same stall pricing rules and optional `shopperSays`
-wording — still writing `turns` / `offers`, not calling stall agents over A2A yet.
+through an A2A client ([`src/lib/server/a2a/client.ts`](../src/lib/server/a2a/client.ts)):
+card → `SendMessage` (`hello` / `rfq` / `counter` / `accept`) against each stall agent, with
+optional `shopperSays` wording. Chat still lands in `turns` / `offers`. Base URL is
+`NEXT_PUBLIC_APP_URL` (same public origin as stall cards).
 
 ## Spec references
 
@@ -108,4 +110,4 @@ wording — still writing `turns` / `offers`, not calling stall agents over A2A 
 ## Not in this slice
 
 - Market directory card / `find` / catalog
-- Buyer agent as an A2A client (in-app `seedHaggle` talks locally, not over JSON-RPC)
+- Public shopper agent (`/a2a/shop`)

@@ -8,68 +8,104 @@ import {
   type OpenStallMatch,
 } from "@/lib/server/bargains";
 import { shopperSays, type Turn } from "@/lib/server/ai-agent";
+import { appClient, A2aCallError, type A2aClient, type StallCard } from "@/lib/server/a2a/client";
 import { openHaggle, type BuyerVoice, type StallChannel } from "@/lib/server/buyer-agent";
 import { geminiConfigured } from "@/lib/server/gemini";
 import { query } from "@/lib/server/db";
 import { HANDED_OFF, OVER_BUDGET } from "@/lib/offer-status";
-import { decideStallCounter, stallSettles } from "@/lib/server/stall-agent";
+import type { Offer, StallReply } from "@/lib/a2a/protocol";
 import { rupees } from "@/lib/want";
 
 /*
- * In-app negotiation: buyer brain (buyer-agent.ts) talks through a local StallChannel that
- * writes turns/offers and answers with stall-agent pricing. No A2A client yet.
+ * In-app negotiation: buyer brain (buyer-agent.ts) talks through an A2A StallChannel that
+ * calls stall agents over JSON-RPC (same path outside agents use) and writes turns/offers.
  */
 
-/** Seeds each matched stall: buyer agent haggles, then hands Agree to the buyer. */
+/** Seeds each matched stall: buyer agent haggles over A2A, then hands Agree to the buyer. */
 export async function seedHaggle(
   bargainId: string,
   stalls: OpenStallMatch[],
   budget: number | null,
 ) {
+  const client = appClient();
   await Promise.all(
     stalls.map((s) =>
-      seedOne(bargainId, s, budget)
+      seedOne(client, bargainId, s, budget)
         .then(() => refreshChat(bargainId, s.stallId))
         .catch((err) => console.error("seedHaggle", bargainId, s.stallId, err)),
     ),
   );
 }
 
-async function seedOne(bargainId: string, s: OpenStallMatch, budget: number | null) {
+async function seedOne(
+  client: A2aClient,
+  bargainId: string,
+  s: OpenStallMatch,
+  budget: number | null,
+) {
   if (!(await claimSeed(bargainId, s.stallId))) return;
 
-  const talk = new LocalTalk(bargainId, s);
+  if (!s.agentId) {
+    await declineStall(bargainId, s.stallId, "This stall isn’t on A2A yet.");
+    return;
+  }
+
+  let talk: A2aTalk;
+  try {
+    const stall = await client.stallById(s.agentId);
+    talk = new A2aTalk(client, bargainId, s, stall);
+  } catch (err) {
+    const reason = err instanceof A2aCallError ? err.message : "Couldn’t reach this stall’s agent.";
+    console.error("seedHaggle card", bargainId, s.stallId, err);
+    await declineStall(bargainId, s.stallId, reason);
+    return;
+  }
+
   try {
     await openHaggle(talk.channel(), budget, talk.voice());
   } catch (err) {
     if (err instanceof Aborted) return;
-    throw err;
+    console.error("seedHaggle talk", bargainId, s.stallId, err);
+    await declineStall(bargainId, s.stallId, "This stall didn’t answer.").catch(() => {});
   }
+}
+
+async function declineStall(bargainId: string, stallId: string, reason: string) {
+  const ids = { bargainId, stallId, ifHaggling: true } as const;
+  await addLine({
+    ...ids,
+    speaker: "stall",
+    text: reason,
+    status: "declined",
+    current: null,
+  });
+  await setOffer({ ...ids, status: "declined", current: null });
 }
 
 /** Offer moved on (buyer agreed elsewhere): stop this seed quietly. */
 class Aborted extends Error {}
 
+type OfferReply = Extract<StallReply, { type: "offer" }>;
+
 /**
- * One in-app talk with one stall: catalog (or Gemini) lines into turns, stall prices from
- * stall-agent.ts.
+ * One in-app talk with one stall agent over A2A: catalog/Gemini lines into turns, prices from
+ * the stall's JSON-RPC replies.
  */
-class LocalTalk {
-  private asking: number;
-  private readonly floor: number;
-  private counters = 0;
-  private lastTarget: number | undefined;
+class A2aTalk {
+  private taskId: string | null = null;
+  private latest: Offer | null = null;
+  private lastOfferReply: OfferReply | null = null;
+  private asking: number | null = null;
   private agentOffer: number | null = null;
   private readonly turns: Turn[] = [];
   private lastStallText = "";
 
   constructor(
+    private readonly client: A2aClient,
     private readonly bargainId: string,
     private readonly s: OpenStallMatch,
-  ) {
-    this.asking = s.price;
-    this.floor = s.lowest;
-  }
+    private readonly stall: StallCard,
+  ) {}
 
   private ids = () =>
     ({ bargainId: this.bargainId, stallId: this.s.stallId, ifHaggling: true }) as const;
@@ -121,7 +157,6 @@ class LocalTalk {
     if (!ok) throw new Aborted();
   }
 
-  /** Hand the yes to the buyer: chat shows Agree after this. */
   private async handOff(price: number) {
     this.agentOffer = price;
     await this.offer({ current: price, agentOffer: price });
@@ -132,9 +167,47 @@ class LocalTalk {
     });
   }
 
+  private menuLines(menu: StallCard["menu"]) {
+    return menu
+      .slice(0, 8)
+      .map((m) => `• ${m.name}: ${rupees(m.priceInr)}`)
+      .join("\n");
+  }
+
+  private async send(intent: Parameters<A2aClient["send"]>[1], text?: string) {
+    const { task, reply } = await this.client.send(this.stall, intent, {
+      taskId: this.taskId ?? undefined,
+      contextId: this.bargainId,
+      text,
+    });
+    if (!this.taskId) this.taskId = task.id;
+    if (reply?.type === "offer") {
+      this.latest = reply.offer;
+      this.lastOfferReply = reply;
+      this.asking = reply.offer.totalInr;
+    }
+    return reply;
+  }
+
+  private async acceptLatest(theirs: number) {
+    const offer = this.latest;
+    if (!offer || offer.totalInr !== theirs)
+      throw new Error("no stall offer to accept at that price");
+    const reply = await this.send({ type: "accept", offerId: offer.offerId });
+    if (reply?.type !== "deal") throw new Error("the stall agent didn’t take its own offer");
+  }
+
+  private async stallNote(
+    reply: { note?: string; said?: Record<string, string> },
+    fallback: string,
+  ) {
+    const text = reply.said?.en?.trim() || reply.note?.trim() || fallback;
+    await this.line("stall", { text, status: "waiting", current: this.asking });
+  }
+
   voice(): BuyerVoice | undefined {
     if (!geminiConfigured()) return undefined;
-    const items = this.s.itemName;
+    const items = `1 × ${this.s.itemName}`;
     return {
       word: async (turn) => {
         const spoken = await shopperSays({
@@ -153,15 +226,18 @@ class LocalTalk {
   channel(): StallChannel {
     return {
       greet: async () => {
-        await this.line("stall", {
-          msg: "Welcome to {shop}! Here's what we have today:\n\n{menu}",
-          vars: {
-            shop: this.s.stallName,
-            menu: `• ${this.s.itemName}: ${rupees(this.s.price)}`,
-          },
-          status: "waiting",
-          current: null,
-        });
+        const reply = await this.send({ type: "hello", languages: ["en", this.s.stallLang] });
+        if (reply?.type !== "welcome") {
+          const reason = reply?.type === "no-offer" ? reply.reason : "This stall isn’t open.";
+          await this.line("stall", { text: reason, status: "declined", current: null });
+          await this.offer({ status: "declined", current: null });
+          return false;
+        }
+        const menu = this.menuLines(reply.menu.length ? reply.menu : this.stall.menu);
+        const fallback = `Welcome to ${this.stall.name}! Here's what we have today:\n\n${menu}`;
+        const welcome = reply.said?.en?.trim() || reply.note?.trim() || fallback;
+        const withMenu = welcome.includes(menu) || !menu ? welcome : `${welcome}\n\n${menu}`;
+        await this.line("stall", { text: withMenu, status: "waiting", current: null });
         return true;
       },
 
@@ -172,58 +248,61 @@ class LocalTalk {
           status: "waiting",
           current: null,
         });
-        const ask = this.s.price;
+        const reply = await this.send(
+          {
+            type: "rfq",
+            basket: [{ item: this.s.itemName, qty: 1 }],
+            languages: ["en", this.s.stallLang],
+          },
+          `Namaste! I'm buying a ${this.s.itemName.toLowerCase()} for someone nearby. What's your price?`,
+        );
+        if (reply?.type !== "offer") {
+          const reason = reply?.type === "no-offer" ? reply.reason : "No offer.";
+          await this.line("stall", { text: reason, status: "declined", current: null });
+          await this.offer({ status: "declined", current: null });
+          return null;
+        }
+        const ask = reply.offer.totalInr;
         this.asking = ask;
-        await this.line("stall", {
-          msg: "Very good quality, handmade. {price}.",
-          vars: { price: rupees(ask) },
-          status: "waiting",
-          current: ask,
-        });
+        await this.stallNote(reply, `Very good quality, handmade. ${rupees(ask)}.`);
         await this.offer({ asked: ask, current: ask });
         return { totalInr: ask };
       },
 
       counter: async (mine, theirs, opts) => {
         this.agentOffer = mine;
-        // Non-empty line = Gemini; undefined/"" = catalog ("" means AI failed once — don't retry).
+        let text: string | undefined;
         if (opts?.line) {
           await this.line("agent", { text: opts.line, current: theirs });
+          text = opts.line;
         } else {
           await this.line("agent", {
             msg: "Other stalls here are lower. Can you do {price}?",
             vars: { price: rupees(mine) },
             current: theirs,
           });
+          text = `Other stalls here are lower. Can you do ${rupees(mine)}?`;
         }
+        await this.offer({ current: theirs, agentOffer: mine });
 
-        const settled = stallSettles({
-          asking: this.asking,
-          floor: this.floor,
-          counters: this.counters,
-          target: mine,
-          final: opts?.final,
-        });
-        const priced =
-          settled ??
-          decideStallCounter({
-            ask: this.s.price,
-            asking: this.asking,
-            floor: this.floor,
-            counters: this.counters,
-            lastTarget: this.lastTarget,
-            style: this.s.style,
-            target: mine,
-          });
-        this.lastTarget = mine;
-        this.counters += 1;
-        this.asking = priced.totalInr;
-        // Stall's spoken reply is posted by stallSaid / deal.
-        await this.offer({ current: priced.totalInr, agentOffer: mine });
-        return { totalInr: priced.totalInr, final: priced.final };
+        const reply = await this.send(
+          {
+            type: "counter",
+            targetInr: mine,
+            languages: ["en", this.s.stallLang],
+            ...(opts?.final && { final: true }),
+          },
+          text,
+        );
+        if (reply?.type !== "offer") return null;
+        this.asking = reply.offer.totalInr;
+        await this.offer({ current: reply.offer.totalInr, agentOffer: mine });
+        // Spoken stall reply is posted by stallSaid / deal.
+        return { totalInr: reply.offer.totalInr, final: !!reply.final };
       },
 
       deal: async (theirs) => {
+        await this.acceptLatest(theirs);
         await this.line("stall", {
           msg: "Okay, {price}. Deal.",
           vars: { price: rupees(theirs) },
@@ -233,21 +312,35 @@ class LocalTalk {
       },
 
       agree: async (theirs) => {
+        await this.acceptLatest(theirs);
         await this.handOff(theirs);
       },
 
       stallSaid: async (theirs, kind) => {
-        await this.line("stall", {
-          msg: "No, no. {price}, last price.",
-          vars: { price: rupees(theirs) },
-          status: kind === "waiting" ? "waiting" : "haggling",
-          current: theirs,
-        });
+        const fromA2a =
+          this.lastOfferReply && this.lastOfferReply.offer.totalInr === theirs
+            ? this.lastOfferReply.said?.en?.trim() || this.lastOfferReply.note?.trim()
+            : undefined;
+        if (fromA2a) {
+          await this.line("stall", {
+            text: fromA2a,
+            status: kind === "waiting" ? "waiting" : "haggling",
+            current: theirs,
+          });
+        } else {
+          await this.line("stall", {
+            msg: "No, no. {price}, last price.",
+            vars: { price: rupees(theirs) },
+            status: kind === "waiting" ? "waiting" : "haggling",
+            current: theirs,
+          });
+        }
         this.asking = theirs;
         await this.offer({ current: theirs });
       },
 
       walkAway: async (price) => {
+        await this.send({ type: "decline" }).catch(() => null);
         await this.line("agent", {
           msg: "That's well over your budget. I'll leave this stall.",
           status: "declined",
@@ -265,7 +358,11 @@ class LocalTalk {
         await this.offer({ current: price, agentOffer: this.agentOffer });
       },
 
-      standingOffer: () => (this.asking > 0 ? this.asking : null),
+      standingOffer: () =>
+        this.latest && Date.parse(this.latest.validUntil) > Date.now() + 5_000
+          ? this.latest.totalInr
+          : this.asking,
+
       current: () => this.asking,
     };
   }
@@ -275,8 +372,9 @@ class LocalTalk {
 export async function pendingMatches(bargainId: string): Promise<OpenStallMatch[]> {
   if (!isBargainId(bargainId)) return [];
   return query<OpenStallMatch>(
-    `SELECT o.stall_id AS "stallId", o.item_id AS "itemId", i.name AS "itemName",
-            i.price, i.lowest, s.style, s.name AS "stallName", s.lang AS "stallLang"
+    `SELECT o.stall_id AS "stallId", s.agent_id AS "agentId", o.item_id AS "itemId",
+            i.name AS "itemName", i.price, i.lowest, s.style, s.name AS "stallName",
+            s.lang AS "stallLang"
      FROM offers o
      JOIN stall_items i ON i.id = o.item_id
      JOIN stalls s ON s.id = o.stall_id
