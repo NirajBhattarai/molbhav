@@ -1,5 +1,6 @@
 import { connection } from "next/server";
 import { Suspense } from "react";
+import { HomeRefresh } from "@/components/app/home-refresh";
 import { ProfileLink } from "@/components/app/profile-link";
 import { Screen } from "@/components/app/screen";
 import { WantForm } from "@/components/app/want-form";
@@ -11,6 +12,7 @@ import { stallsNear } from "@/lib/server/shop";
 export default function Home() {
   return (
     <Screen>
+      <HomeRefresh />
       <header className="mb-4 flex h-11 items-center justify-between gap-3">
         <Logo />
         <Suspense fallback={null}>

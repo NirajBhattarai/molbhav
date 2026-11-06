@@ -77,7 +77,6 @@ export function WantForm() {
 function WantSheet({ onClose }: { onClose: () => void }) {
   const lang = useLang();
   const discovery = useDiscoveryMode();
-  // Scan BLE stall beacons while this sheet is open and discovery is "nearby".
   const nearby = useNearbyStalls(discovery === "nearby");
   const form = useRef<HTMLFormElement>(null);
   const [order, setOrder] = useState("");
@@ -306,7 +305,7 @@ function WantSheet({ onClose }: { onClose: () => void }) {
                 : nearby.agents.length
                   ? `Stalls heard nearby: ${nearby.agents.length}`
                   : "Looking for stalls nearby…"
-              : "Finding stalls via nearby agents (change in Profile). Open the iPhone app to hear beacons."
+              : "Finding stalls via nearby agents — use the iPhone app to hear beacons."
             : "Finding stalls by location (change in Profile)."}
         </p>
         <input type="hidden" name="discovery" value={discovery} />

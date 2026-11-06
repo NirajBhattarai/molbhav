@@ -1,40 +1,41 @@
 import { describe, expect, it } from "vitest";
-import { agentInAdvert, stallInAdvert } from "@/lib/ble/beacon";
+import { agentInAdvert, asBytes, stallInAdvert } from "@/lib/ble/beacon";
 
 const id = "agent_078a8df588";
-const data = (status: number, agent = id, version = 1) =>
+const payload = (status: number, agent = id, version = 1) =>
   Uint8Array.from([version, status, ...new TextEncoder().encode(agent)]);
+const withCompany = (status: number) => Uint8Array.from([0xab, 0x0b, ...payload(status)]);
 
 describe("a stall's beacon", () => {
-  it("reads the agent id from manufacturer data when open", () => {
-    expect(agentInAdvert({ data: [data(1)] })).toBe(id);
-    expect(stallInAdvert({ data: [data(1)] })).toEqual({ id, askable: true });
-  });
-
-  it("reads an in-deal stall", () => {
-    expect(agentInAdvert({ data: [data(3)] })).toBe(id);
-  });
-
-  it("does not offer from the name alone (status unknown)", () => {
-    expect(agentInAdvert({ name: `MolbhavA-${id}`, data: [] })).toBeNull();
-    expect(stallInAdvert({ name: `MolbhavA-${id}`, data: [] })).toBeNull();
+  it("reads open and in-deal as askable", () => {
+    expect(stallInAdvert({ data: [payload(1)] })).toEqual({ id, askable: true });
+    expect(stallInAdvert({ data: [payload(3)] })).toEqual({ id, askable: true });
+    expect(agentInAdvert({ data: [payload(1)] })).toBe(id);
   });
 
   it("marks closed and paused as not askable", () => {
-    expect(stallInAdvert({ data: [data(0)] })).toEqual({ id, askable: false });
-    expect(stallInAdvert({ data: [data(2)] })).toEqual({ id, askable: false });
-    expect(agentInAdvert({ data: [data(0)] })).toBeNull();
-    expect(agentInAdvert({ data: [data(2)] })).toBeNull();
+    expect(stallInAdvert({ data: [payload(0)] })).toEqual({ id, askable: false });
+    expect(stallInAdvert({ data: [payload(2)] })).toEqual({ id, askable: false });
+    expect(agentInAdvert({ data: [payload(0)] })).toBeNull();
   });
 
-  it("does not offer a closed stall via its name after seeing closed payload", () => {
-    expect(agentInAdvert({ name: `MolbhavA-${id}`, data: [data(0)] })).toBeNull();
+  it("accepts payloads that still include the company id", () => {
+    expect(stallInAdvert({ data: [withCompany(1)] })).toEqual({ id, askable: true });
+    expect(stallInAdvert({ data: [withCompany(0)] })).toEqual({ id, askable: false });
   });
 
-  it("ignores everything else in the air", () => {
+  it("reads Capacitor DataViews", () => {
+    const view = new DataView(payload(1).buffer);
+    expect(asBytes(view)).toEqual(payload(1));
+    expect(stallInAdvert({ data: [view] })).toEqual({ id, askable: true });
+  });
+
+  it("never offers from the name alone", () => {
+    expect(agentInAdvert({ name: `MolbhavA-${id}`, data: [] })).toBeNull();
+  });
+
+  it("ignores noise", () => {
     expect(agentInAdvert({ name: "AirPods Pro", data: [] })).toBeNull();
     expect(agentInAdvert({ data: [Uint8Array.from([76, 0, 2])] })).toBeNull();
-    expect(agentInAdvert({ data: [data(1, id, 2)] })).toBeNull();
-    expect(agentInAdvert({ data: [data(1, "agent_NOT-HEX000")] })).toBeNull();
   });
 });

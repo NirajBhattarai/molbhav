@@ -4,40 +4,37 @@ import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { Capacitor } from "@capacitor/core";
 import { stallInAdvert } from "@/lib/ble/beacon";
 
-/** How long each scan listens, and the pause before the next, while the buyer is ordering. */
-const LISTEN_MS = 4000;
-const PAUSE_MS = 2500;
-/** Drop a stall if we haven't heard it askable within this window (covers a missed scan). */
-const STALE_MS = 12_000;
+const LISTEN_MS = 3500;
+const PAUSE_MS = 1500;
+/** Forget a stall if we haven't heard it askable this recently. */
+const STALE_MS = 8_000;
 
 const noSubscribe = () => () => {};
-
-/** Bluetooth LE scan is only available in the native Capacitor shell. */
 const isNative = () => Capacitor.isNativePlatform();
-
-function payloadBytes(view: DataView): Uint8Array {
-  return new Uint8Array(view.buffer, view.byteOffset, view.byteLength);
-}
 
 type Pass = { askable: Set<string>; closed: Set<string> };
 
-/** One scan pass: askable agent ids, and ids heard as closed/paused (to remove). */
 async function listen(): Promise<Pass> {
   const { BleClient } = await import("@capacitor-community/bluetooth-le");
   await BleClient.initialize({ androidNeverForLocation: true });
   const askable = new Set<string>();
   const closed = new Set<string>();
 
-  // allowDuplicates: iOS often omits manufacturer data on the first packet.
+  // allowDuplicates: iOS often sends name first, manufacturer data on a later packet.
   await BleClient.requestLEScan({ allowDuplicates: true }, (result) => {
-    const chunks = Object.values(result.manufacturerData ?? {}).map(payloadBytes);
+    const chunks = Object.values(result.manufacturerData ?? {});
     const stall = stallInAdvert({
       name: result.localName ?? result.device?.name,
       data: chunks,
     });
     if (!stall) return;
-    if (stall.askable) askable.add(stall.id);
-    else closed.add(stall.id);
+    if (stall.askable) {
+      askable.add(stall.id);
+      closed.delete(stall.id);
+    } else {
+      closed.add(stall.id);
+      askable.delete(stall.id);
+    }
   });
 
   await new Promise((r) => setTimeout(r, LISTEN_MS));
@@ -46,9 +43,8 @@ async function listen(): Promise<Pass> {
 }
 
 /**
- * Stalls heard over Bluetooth while `active`.
- * Closed/paused signs are removed as soon as we hear their status byte.
- * On the web there is nothing to scan — `native` is false and `agents` stays empty.
+ * Nearby open/in-deal stall agents while `active`.
+ * Hearing a closed/paused status removes that agent immediately.
  */
 export function useNearbyStalls(active: boolean) {
   const native = useSyncExternalStore(noSubscribe, isNative, () => false);
@@ -68,7 +64,7 @@ export function useNearbyStalls(active: boolean) {
           const now = Date.now();
           for (const id of closed) lastAskable.current.delete(id);
           for (const id of askable) lastAskable.current.set(id, now);
-          for (const [id, seen] of lastAskable.current) {
+          for (const [id, seen] of [...lastAskable.current]) {
             if (now - seen > STALE_MS) lastAskable.current.delete(id);
           }
           setBlocked(false);
