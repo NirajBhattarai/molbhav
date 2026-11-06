@@ -1,20 +1,33 @@
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
 import { HaggleChat } from "@/components/app/haggle-chat";
+import { autoOrderOf, autoOrderStep } from "@/lib/server/auto-order";
 import { me, myChat } from "@/lib/server/bargains";
 import { payingBreaks } from "@/lib/server/limits";
 
 async function ChatContent({ params }: { params: Promise<{ id: string; stallId: string }> }) {
   const { id, stallId } = await params;
   const user = await me();
-  const chat = await myChat(user, id, stallId);
+  // Plan the agent's order here too: buyers often watch the haggle in this chat, not the list.
+  await autoOrderStep(user.id, id).catch((err) => console.error("auto-order", err));
+  const [chat, order] = await Promise.all([
+    myChat(user, id, stallId),
+    autoOrderOf(user.id, id).catch(() => null),
+  ]);
   if (!chat) notFound();
   const overLimit =
     chat.status === "agreed" && chat.current !== null
       ? await payingBreaks(user.id, chat.current)
       : null;
 
-  return <HaggleChat chat={chat} overLimit={overLimit} />;
+  return (
+    <HaggleChat
+      chat={chat}
+      overLimit={overLimit}
+      autoOrder={order?.autoOrder ?? false}
+      auto={order?.auto ?? null}
+    />
+  );
 }
 
 export default async function StallChatPage({

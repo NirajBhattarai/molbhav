@@ -13,12 +13,14 @@ import {
   type ReactNode,
 } from "react";
 import { ArrowDown, ChevronLeft, CircleCheck, ExternalLink, Loader2, Sparkles } from "lucide-react";
+import { AutoOrderCard } from "@/components/app/auto-order-card";
 import { LiveRefresh } from "@/components/app/live-refresh";
 import { StallAvatar } from "@/components/app/stall-avatar";
 import { action, focusRing } from "@/components/ui/styles";
 import { agreeOffer, markPaid } from "@/lib/bargain-actions";
 import { useFormat, useLang, useT, type Msg } from "@/lib/i18n";
 import { LANG } from "@/lib/languages";
+import { autoPending, type AutoOrder } from "@/lib/limits";
 import { HANDED_OFF, OVER_BUDGET, statusChip } from "@/lib/offer-status";
 import type { ChatView, TurnView } from "@/lib/server/bargains";
 import { rupees } from "@/lib/want";
@@ -192,10 +194,16 @@ const EVENT_TONE = {
 export function HaggleChat({
   chat,
   overLimit = null,
+  autoOrder = false,
+  auto = null,
 }: {
   chat: ChatView;
   /** When set, the agreed price would break the buyer's spending limits. */
   overLimit?: { kind: "order" | "day"; limit: number } | null;
+  /** The bargain was started with "pay for me" on. */
+  autoOrder?: boolean;
+  /** What the buyer's agent decided about paying (shown here when it's this stall's deal). */
+  auto?: AutoOrder | null;
 }) {
   const t = useT();
   const format = useFormat();
@@ -277,12 +285,22 @@ export function HaggleChat({
     return () => io.disconnect();
   }, []);
 
+  // The agent is counting down to pay (or paying) this stall's deal: it pays from here too, and the
+  // buyer's own Pay button stays hidden so the same deal is never paid twice at once.
+  const agentPays = auto !== null && "at" in auto && auto.stallId === chat.stall.id;
+  const agentBusy = agentPays && autoPending(auto);
+  // Keep reading while the agent hasn't decided yet or is still on it.
+  const orderOpen = autoOrder && (auto === null || autoPending(auto));
+
   const chip = statusChip(chat.status, false);
   const subtitle = chat.next === "stall" ? null : t(chip.label);
 
   return (
     <div className="mx-auto flex h-dvh w-full max-w-md flex-col overflow-hidden">
-      <LiveRefresh active={talking || chat.next !== null} every={chat.next ? 1200 : 3000} />
+      <LiveRefresh
+        active={talking || chat.next !== null || orderOpen}
+        every={chat.next ? 1200 : orderOpen ? 2000 : 3000}
+      />
 
       {/* Header: who you're talking to, and where the price stands. */}
       <header className="shrink-0 border-b border-border bg-background pt-[env(safe-area-inset-top)]">
@@ -446,7 +464,9 @@ export function HaggleChat({
                 <span className="tabular-nums">· {rupees(chat.current)}</span>
               )}
             </p>
-            {overLimit ? (
+            {agentBusy ? (
+              <AutoOrderCard bargainId={chat.bargainId} auto={auto} />
+            ) : overLimit ? (
               <p role="status" className="text-center text-sm font-medium text-pretty">
                 {t(
                   overLimit.kind === "order"

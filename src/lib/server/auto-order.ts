@@ -36,8 +36,20 @@ async function stateOf(buyerId: string, id: string): Promise<State | null> {
   return row ? { autoOrder: row.auto_order, auto: row.auto, settled: row.settled } : null;
 }
 
-/** Whoever plans first is kept. */
-async function plan(buyerId: string, id: string) {
+/** This bargain's "pay for me" switch and what the agent decided, for a page showing it. */
+export async function autoOrderOf(buyerId: string, id: string) {
+  const state = await stateOf(buyerId, id);
+  return state ? { autoOrder: state.autoOrder, auto: state.auto } : null;
+}
+
+/**
+ * Decides the order once, and whoever decides first is kept. Never decides "no deal" while a stall
+ * is still haggling: a run that got there early (another request had the seed, or its wait timed
+ * out) used to record "no-deal" before the stall had even quoted, and the order never came. It
+ * returns false then, and the next look (the page refreshes while the order is undecided) tries
+ * again.
+ */
+async function plan(buyerId: string, id: string): Promise<boolean> {
   const offers = await query<{
     stall_id: string;
     name: string;
@@ -53,6 +65,7 @@ async function plan(buyerId: string, id: string) {
   const limits = await getLimits(buyerId);
   const on = limits.autoAgree && limits.autoOrder;
   const theirs = !on || offers.some((o) => o.status === "paid");
+  if (!theirs && !best && offers.some((o) => o.status === "haggling")) return false;
   const broken = !theirs && best ? await payingBreaks(buyerId, best.current!) : null;
   const auto: AutoOrder =
     theirs || !best
@@ -65,10 +78,11 @@ async function plan(buyerId: string, id: string) {
             stall: best.name,
             total: best.current!,
           };
-  await query("UPDATE bargains SET auto = $2 WHERE id = $1::uuid AND auto IS NULL", [
-    id,
-    JSON.stringify(auto),
-  ]);
+  const set = await query(
+    "UPDATE bargains SET auto = $2 WHERE id = $1::uuid AND auto IS NULL RETURNING id",
+    [id, JSON.stringify(auto)],
+  );
+  return set.length > 0;
 }
 
 type Due = Extract<AutoOrder, { at: number }>;
@@ -150,8 +164,7 @@ export async function autoOrderStep(buyerId: string, id: string, talked = false)
   const state = await stateOf(buyerId, id);
   if (!state?.autoOrder || state.auto) return false;
   if (!talked && !state.settled) return false;
-  await plan(buyerId, id);
-  return true;
+  return plan(buyerId, id);
 }
 
 /** Run after the talk: waits for the last lines, then plans the order (the page pays it). */

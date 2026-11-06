@@ -1,5 +1,6 @@
 import "server-only";
 import type { AutoOrder } from "@/lib/limits";
+import { HANDED_OFF, OVER_BUDGET } from "@/lib/offer-status";
 import { fillChat, readChat, wroteChat, type CachedChat } from "@/lib/server/chat-cache";
 import { query } from "@/lib/server/db";
 import { ensureUser, me, type Me } from "@/lib/server/shop";
@@ -274,12 +275,22 @@ async function loadChat(bargainId: string, stallId: string): Promise<CachedChat<
 
   const status: OfferStatus =
     row.current === null && row.status === "haggling" ? "waiting" : row.status;
+  // Who answers next while the agents are mid-exchange, for the "typing" dots and a quicker live
+  // refresh: the other side of the last line. Nobody once the agent has handed the price to the
+  // buyer (or found it over budget): that waits for the buyer's tap.
+  const lastLine = turns.at(-1);
   const next =
     status === "waiting"
       ? ("stall" as const)
-      : status === "haggling" && !turns.length
-        ? ("agent" as const)
-        : null;
+      : status !== "haggling"
+        ? null
+        : !lastLine
+          ? ("agent" as const)
+          : lastLine.msg === HANDED_OFF || lastLine.msg === OVER_BUDGET
+            ? null
+            : lastLine.speaker === "stall"
+              ? ("agent" as const)
+              : ("stall" as const);
 
   return {
     buyerId: row.buyer_id,

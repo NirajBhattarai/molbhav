@@ -109,6 +109,9 @@ async function findStall(
   return client.stallById(s.agentId);
 }
 
+/** How long a line stays alone before the next one: time to read it, from 0.7 s up to 2 s. */
+export const paceOf = (text: string) => Math.min(2000, 700 + text.length * 15);
+
 /** Offer moved on (buyer agreed elsewhere): stop this seed quietly. */
 class Aborted extends Error {}
 
@@ -126,6 +129,8 @@ class A2aTalk {
   private agentOffer: number | null = null;
   private readonly turns: Turn[] = [];
   private lastStallText = "";
+  /** When the last line went into the chat, to pace the next one (see `paceOf`). */
+  private lastLineAt = 0;
 
   constructor(
     private readonly client: A2aClient,
@@ -147,6 +152,15 @@ class A2aTalk {
       current: number | null;
     },
   ) {
+    const shown =
+      opts.text ??
+      (opts.msg
+        ? opts.msg.replace(/\{(\w+)\}/g, (_, k: string) => opts.vars?.[k] ?? `{${k}}`)
+        : "");
+    // One line at a time, at reading pace, like a real chat: the AI often answers faster than
+    // anyone reads, and lines landing together looked jumpy. The "typing" dots fill the wait.
+    const wait = this.lastLineAt + paceOf(shown) - Date.now();
+    if (wait > 0) await new Promise((r) => setTimeout(r, wait));
     const ok = await addLine({
       ...this.ids(),
       speaker,
@@ -156,12 +170,8 @@ class A2aTalk {
       status: opts.status ?? "haggling",
       current: opts.current,
     });
+    this.lastLineAt = Date.now();
     if (!ok) throw new Aborted();
-    const shown =
-      opts.text ??
-      (opts.msg
-        ? opts.msg.replace(/\{(\w+)\}/g, (_, k: string) => opts.vars?.[k] ?? `{${k}}`)
-        : "");
     if (shown) {
       this.turns.push({ from: speaker === "stall" ? "stall" : "buyer", text: shown });
       if (speaker === "stall") this.lastStallText = shown;

@@ -5,8 +5,8 @@ vi.mock("@/lib/server/db", () => ({ query: vi.fn() }));
 vi.mock("@/lib/server/limits", () => ({ getLimits: vi.fn(), payingBreaks: vi.fn() }));
 
 import { query } from "@/lib/server/db";
-import { payingBreaks } from "@/lib/server/limits";
-import { claimPay, orderPaid, payFailed } from "@/lib/server/auto-order";
+import { getLimits, payingBreaks } from "@/lib/server/limits";
+import { autoOrderStep, claimPay, orderPaid, payFailed } from "@/lib/server/auto-order";
 
 const ID = "11111111-2222-3333-4444-555555555555";
 const due = { at: Date.now(), stallId: "u-f8095aba", stall: "MOHD SOYEB KHAN", total: 190 };
@@ -14,6 +14,42 @@ const due = { at: Date.now(), stallId: "u-f8095aba", stall: "MOHD SOYEB KHAN", t
 beforeEach(() => {
   vi.mocked(query).mockReset();
   vi.mocked(payingBreaks).mockReset().mockResolvedValue(null);
+  vi.mocked(getLimits).mockResolvedValue({
+    perOrder: 1000,
+    perDay: 1000,
+    autoAgree: true,
+    autoOrder: true,
+  });
+});
+
+describe("autoOrderStep", () => {
+  const undecided = [{ auto_order: true, auto: null, settled: false }];
+  const stall = { stall_id: "u-f8095aba", name: "MOHD SOYEB KHAN" };
+
+  it("doesn't decide 'no deal' while a stall is still haggling", async () => {
+    vi.mocked(query)
+      .mockResolvedValueOnce(undecided)
+      .mockResolvedValueOnce([{ ...stall, status: "haggling", current: null }]);
+    await expect(autoOrderStep("buyer", ID, true)).resolves.toBe(false);
+    expect(query).toHaveBeenCalledTimes(2); // read the state and the offers; wrote nothing
+  });
+
+  it("counts down to pay the cheapest agreed deal once there is one", async () => {
+    vi.mocked(query)
+      .mockResolvedValueOnce(undecided)
+      .mockResolvedValueOnce([{ ...stall, status: "agreed", current: 190 }])
+      .mockResolvedValueOnce([{ id: ID }]);
+    await expect(autoOrderStep("buyer", ID, true)).resolves.toBe(true);
+    const planned = JSON.parse(vi.mocked(query).mock.calls[2]![1]![1] as string);
+    expect(planned).toMatchObject({ stallId: stall.stall_id, total: 190 });
+    expect(planned.at).toBeGreaterThan(Date.now());
+  });
+
+  it("waits for the talk to end unless told it has", async () => {
+    vi.mocked(query).mockResolvedValueOnce(undecided);
+    await expect(autoOrderStep("buyer", ID)).resolves.toBe(false);
+    expect(query).toHaveBeenCalledTimes(1);
+  });
 });
 
 describe("claimPay", () => {
