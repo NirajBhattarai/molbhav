@@ -19,15 +19,15 @@ A shopkeeper signs in, starts a stall a piece at a time (details → pin → ope
 
 ## Decisions
 
-| Decision              | Choice                                                                                                                            |
-| --------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
-| Store                 | Postgres                                                                                                                          |
-| Stalls per shopkeeper | One (`stalls.owner_id` unique); drop uniqueness later if multi-stall is needed                                                    |
-| Person key            | Magic-style issuer string as `users.id`, plus `email`                                                                             |
-| Incomplete stalls     | Allowed; row can exist with empty name / no UPI / no pin                                                                          |
-| Discoverable          | Only when `is_open` is true                                                                                                       |
-| Agent address         | Nullable `agent_id` from UPI (`agent_` + first 10 hex of sha256(UPI)), unique when set — payout identity without building A2A yet |
-| Menu prices           | Whole rupees: `price` = starting ask, `lowest` = absolute floor (never told to buyers)                                            |
+| Decision              | Choice                                                                                                                                                                               |
+| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Store                 | Postgres                                                                                                                                                                             |
+| Stalls per shopkeeper | One (`stalls.owner_id` unique); drop uniqueness later if multi-stall is needed                                                                                                       |
+| Person key            | Magic-style issuer string as `users.id`, plus `email`                                                                                                                                |
+| Incomplete stalls     | Allowed; row can exist with empty name / no UPI / no pin                                                                                                                             |
+| Discoverable          | Only when `is_open` is true                                                                                                                                                          |
+| Agent address         | Nullable `agent_id` from UPI (`agent_` + first 10 hex of sha256(UPI)), unique when set — stall Agent Card at `/a2a/agents/{id}/.well-known/agent-card.json` (see [a2a.md](./a2a.md)) |
+| Menu prices           | Whole rupees: `price` = starting ask, `lowest` = absolute floor (never told to buyers)                                                                                               |
 
 ## Entity model
 
