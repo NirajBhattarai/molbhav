@@ -7,25 +7,26 @@ Tokens live in [`src/app/globals.css`](../src/app/globals.css).
 
 ## The palette
 
-| Token                  | Light                 | Dark      | Use it for                           |
-| ---------------------- | --------------------- | --------- | ------------------------------------ |
-| `primary`              | indigo `#2B3A8F`      | `#8E9BFF` | Main buttons, links, focus ring      |
-| `primary-foreground`   | `#FFFFFF`             | `#10132A` | Text on primary                      |
-| `secondary`            | marigold `#F5A524`    | `#FBBF24` | Offers, highlights, badges           |
-| `secondary-foreground` | `#14172B`             | `#10132A` | Text on secondary                    |
-| `success`              | emerald `#047857`     | `#34D399` | Paid, deal done, savings             |
-| `success-foreground`   | `#FFFFFF`             | `#10132A` | Text on success                      |
-| `destructive`          | `#B42318`             | `#F87171` | Errors and irreversible actions only |
-| `background`           | warm paper `#FBF8F1`  | `#10132A` | Page                                 |
-| `foreground`           | ink `#14172B`         | `#F3F1EA` | Body text                            |
-| `card` / `popover`     | `#FFFFFF`             | `#181C38` | Raised surfaces                      |
-| `muted` / `accent`     | `#EFEBE2`             | `#1E2240` | Quiet surfaces, hover backgrounds    |
-| `muted-foreground`     | `#545A6E`             | `#A9AEC4` | Secondary text                       |
-| `input`                | `#7C7F8E`             | `#6E7394` | Form field borders                   |
-| `border`               | `#E4DFD3`             | `#2A2F52` | Decorative dividers only             |
-| `hero`                 | deep indigo `#222D78` | `#181E52` | Brand panel / splash                 |
-| `hero-foreground`      | `#FFFFFF`             | `#FFFFFF` | Text on hero                         |
-| `hero-success`         | mint `#6EE7B7`        | `#6EE7B7` | Money and "live" on the indigo panel |
+| Token                  | Light                 | Dark      | Use it for                             |
+| ---------------------- | --------------------- | --------- | -------------------------------------- |
+| `primary`              | indigo `#2B3A8F`      | `#8E9BFF` | Main buttons, links, focus ring        |
+| `primary-foreground`   | `#FFFFFF`             | `#10132A` | Text on primary                        |
+| `secondary`            | marigold `#F5A524`    | `#FBBF24` | Offers, highlights, badges             |
+| `secondary-foreground` | `#14172B`             | `#10132A` | Text on secondary                      |
+| `success`              | emerald `#047857`     | `#34D399` | Paid, deal done, savings               |
+| `success-foreground`   | `#FFFFFF`             | `#10132A` | Text on success                        |
+| `destructive`          | `#B42318`             | `#F87171` | Errors and irreversible actions only   |
+| `background`           | warm paper `#FBF8F1`  | `#10132A` | Page                                   |
+| `foreground`           | ink `#14172B`         | `#F3F1EA` | Body text                              |
+| `card` / `popover`     | `#FFFFFF`             | `#181C38` | Raised surfaces                        |
+| `muted` / `accent`     | `#EFEBE2`             | `#1E2240` | Quiet surfaces, hover backgrounds      |
+| `muted-foreground`     | `#545A6E`             | `#A9AEC4` | Secondary text                         |
+| `input`                | `#7C7F8E`             | `#6E7394` | Form field borders                     |
+| `border`               | `#E4DFD3`             | `#2A2F52` | Decorative dividers only               |
+| `hero`                 | deep indigo `#222D78` | `#181E52` | Brand panel / splash                   |
+| `hero-foreground`      | `#FFFFFF`             | `#FFFFFF` | Text on hero                           |
+| `hero-success`         | mint `#6EE7B7`        | `#6EE7B7` | Money and "live" on the indigo panel   |
+| `awning`               | marigold at 28%       | at 9%     | Decorative wash at the top of a screen |
 
 Token names follow [shadcn/ui theming](https://ui.shadcn.com/docs/theming) conventions, so UI kits that expect those names pick them up as-is. In Tailwind they are classes like `bg-primary`, `text-muted-foreground`, `border-input`, and `bg-success`.
 

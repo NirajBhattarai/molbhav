@@ -78,10 +78,16 @@ export function MenuSection({ items, canReadMenu }: { items: ShopItem[]; canRead
     <section
       id="menu"
       aria-labelledby="menu-title"
-      className="scroll-mt-4 overflow-hidden rounded-2xl border border-border bg-card text-card-foreground"
+      className="scroll-mt-4 overflow-hidden rounded-2xl border border-border bg-card text-card-foreground shadow-sm"
     >
-      <header className="flex items-end justify-between gap-3 px-4 pt-4 pb-3">
-        <div className="min-w-0">
+      <header className="flex items-center justify-between gap-3 px-4 pt-4 pb-3">
+        <span
+          aria-hidden
+          className="flex size-11 shrink-0 rotate-3 items-center justify-center rounded-2xl bg-secondary text-secondary-foreground shadow-sm"
+        >
+          <ReceiptText className="size-5" />
+        </span>
+        <div className="min-w-0 flex-1">
           <p className="text-xs font-semibold tracking-[0.08em] text-muted-foreground uppercase">
             {t("Menu")}
           </p>
@@ -94,7 +100,7 @@ export function MenuSection({ items, canReadMenu }: { items: ShopItem[]; canRead
           </h2>
         </div>
         {items.length > 0 && (
-          <span className="shrink-0 rounded-full bg-muted px-2.5 py-1 text-xs font-semibold text-muted-foreground tabular-nums">
+          <span className="shrink-0 rounded-full bg-primary/10 px-2.5 py-1 text-xs font-semibold text-primary tabular-nums">
             {t(items.length === 1 ? "{n} item" : "{n} items", { n: items.length })}
           </span>
         )}
@@ -148,12 +154,12 @@ export function MenuSection({ items, canReadMenu }: { items: ShopItem[]; canRead
             }}
             className={outlineButton}
           >
-            <Plus className="size-5" aria-hidden />
+            <Plus className="size-5 text-primary" aria-hidden />
             {t("Add item")}
           </button>
           {canReadMenu && (
             <button type="button" onClick={pickPhoto} className={outlineButton}>
-              <Camera className="size-5" aria-hidden />
+              <Camera className="size-5 text-primary" aria-hidden />
               {t("Scan menu")}
             </button>
           )}
@@ -355,7 +361,7 @@ function MenuRow({ item, onEdit }: { item: ShopItem; onEdit: () => void }) {
               aria-hidden
               className="min-w-6 flex-1 -translate-y-1 border-b border-dotted border-input/60"
             />
-            <span className="shrink-0 font-display text-base font-semibold tabular-nums">
+            <span className="shrink-0 font-display text-base font-bold text-primary tabular-nums">
               {inr(item.price)}
             </span>
           </span>
@@ -364,7 +370,11 @@ function MenuRow({ item, onEdit }: { item: ShopItem; onEdit: () => void }) {
               <Lock className="size-3.5" aria-hidden />
               {t("Lowest {price}", { price: inr(item.lowest) })}
             </span>
-            <span className="tabular-nums">
+            <span
+              className={`rounded-full px-1.5 py-px font-medium tabular-nums ${
+                room > 0 ? "bg-secondary/25 text-foreground" : "bg-muted"
+              }`}
+            >
               {room > 0 ? t("{price} to bargain", { price: inr(room) }) : t("Fixed price")}
             </span>
             {item.aliases.length > 0 && (
