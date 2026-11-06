@@ -35,7 +35,10 @@ export function CopyButton({
       aria-label={copied ? t("Copied") : label}
       className={`flex size-11 shrink-0 items-center justify-center rounded-lg transition-[background-color,transform] duration-150 ease-out active:scale-[0.97] ${className}`}
     >
-      <span key={copied ? "copied" : "copy"} className="flex animate-[rise_160ms_var(--ease-out)]">
+      <span
+        key={copied ? "copied" : "copy"}
+        className="flex animate-[icon-in_160ms_var(--ease-out)]"
+      >
         {copied ? (
           <Check className="size-5" aria-hidden />
         ) : (

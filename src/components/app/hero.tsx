@@ -168,7 +168,11 @@ export function StallStatusControl({
           <span key={status} className="animate-[fade-in_200ms_var(--ease-out)] font-semibold">
             {title}
           </span>
-          <span id={hintId} className="text-sm text-pretty text-hero-foreground/80">
+          <span
+            key={pauseHint ?? hint}
+            id={hintId}
+            className="animate-[fade-in_200ms_var(--ease-out)] text-sm text-pretty text-hero-foreground/80"
+          >
             {pauseHint ?? hint}
           </span>
         </span>
