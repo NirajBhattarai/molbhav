@@ -65,10 +65,12 @@ async function matchesFor(
       style: "friendly" | "firm";
       lang: Lang;
       agentId: string | null;
+      ensLabel: string | null;
     }
   >(
     `SELECT i.id, i.stall_id AS "stallId", s.name AS "stallName", i.name, i.words, i.price,
-            i.lowest, s.style, s.lang, s.agent_id AS "agentId"
+            i.lowest, s.style, s.lang, s.agent_id AS "agentId",
+            CASE WHEN s.ens_status = 'live' THEN s.ens_label END AS "ensLabel"
      FROM stall_items i
      JOIN stalls s ON s.id = i.stall_id
      WHERE i.active AND s.is_open AND s.id = ANY($1::text[])`,
@@ -86,6 +88,7 @@ async function matchesFor(
     byStall.set(id, {
       stallId: id,
       agentId: full.agentId,
+      ensLabel: full.ensLabel,
       itemId: full.id,
       itemName: full.name,
       price: full.price,

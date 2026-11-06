@@ -4,6 +4,7 @@ import { refresh } from "next/cache";
 import { isLang, type Lang } from "@/lib/languages";
 import { aliasesFor, geminiConfigured, geminiJSON } from "@/lib/server/gemini";
 import { forgetOwnerAgent, ownerAgentId, ownerAgentMoved } from "@/lib/server/a2a/stall";
+import { syncStallNameAfter } from "@/lib/server/ens";
 import { hideStallDeals, shopDealsEnded } from "@/lib/server/bargains";
 import { ensureUser, me, type StallStatus, type Style } from "@/lib/server/shop";
 import { buildClaimPack, claimSignWithCode } from "@/lib/server/sign-claim";
@@ -61,8 +62,9 @@ export async function saveStallDetails(details: {
   // Read before the write: a new UPI gives the stall a new agent id, and the old one's cache must go.
   const before = await ownerAgentId(user.id);
   let after: string | null;
+  let stallId: string | undefined;
   try {
-    const [row] = await query<{ agent_id: string | null }>(
+    const [row] = await query<{ id: string; agent_id: string | null }>(
       `INSERT INTO stalls (id, owner_id, name, upi_id, upi_qr, style, lang, is_open, agent_id, updated_at)
        VALUES ($2, $1, $3, $4, $5, $6, $7, false,
          CASE WHEN $4::text IS NULL THEN NULL
@@ -79,16 +81,19 @@ export async function saveStallDetails(details: {
          is_open = stalls.is_open AND EXCLUDED.name <> '' AND EXCLUDED.upi_id IS NOT NULL
            AND stalls.lat IS NOT NULL AND stalls.lng IS NOT NULL
            AND EXISTS (SELECT 1 FROM stall_items i WHERE i.stall_id = stalls.id AND i.active)
-       RETURNING agent_id`,
+       RETURNING id, agent_id`,
       [user.id, newStallId(), name, upi, qr, style, lang],
     );
     after = row?.agent_id ?? null;
+    stallId = row?.id;
   } catch (e) {
     if ((e as { constraint?: string }).constraint === "stalls_agent_id_key")
       return { error: "Another stall already takes payments at this UPI ID." };
     throw e;
   }
   await ownerAgentMoved(user.id, before, after);
+  // Its ENS name follows a new stall name or UPI (a new agent id) on chain.
+  if (stallId) syncStallNameAfter(stallId);
   refresh();
   return null;
 }

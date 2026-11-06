@@ -44,6 +44,8 @@ export type StallCard = {
   lang: string;
   open: boolean;
   menu: { name: string; aliases: string[]; priceInr: number }[];
+  /** The ENS name the card claims (ENSv2); trust it only when that name points back here. */
+  ens?: string;
 };
 
 type Card = {
@@ -221,6 +223,7 @@ export function a2aClient(base: string, role?: InternalRole, fetcher: typeof fet
         lang?: string;
         status?: string;
         menu?: StallCard["menu"];
+        ens?: string;
       };
       if (!endpoint || !ext || !p.agentId || !p.offerKey?.x)
         throw new A2aCallError(-32603, `${cardUrl} isn't a Molbhav stall agent card`);
@@ -234,6 +237,7 @@ export function a2aClient(base: string, role?: InternalRole, fetcher: typeof fet
         lang: p.lang ?? "en",
         open: p.status === "open",
         menu: Array.isArray(p.menu) ? p.menu : [],
+        ...(typeof p.ens === "string" && { ens: p.ens }),
       };
     },
 

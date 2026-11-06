@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import type { Lang } from "@/lib/languages";
 import { currentSession } from "@/lib/server/auth";
 import { query } from "@/lib/server/db";
+import { ensAppUrl, ensNameOf } from "@/lib/server/ens";
 import { geminiConfigured } from "@/lib/server/gemini";
 
 export type Me = { id: string; email: string };
@@ -26,6 +27,8 @@ export type ShopStall = {
   lat: number | null;
   lng: number | null;
   agentId: string | null;
+  /** The stall agent's ENS name (ENSv2): `live` once it resolves on chain. Null until it has one. */
+  ens: { name: string; live: boolean; url: string } | null;
 };
 
 /** One menu row: asking price (`price`) and absolute floor (`lowest`). */
@@ -119,10 +122,12 @@ export async function myShop(user: Me): Promise<{
     lat: number | null;
     lng: number | null;
     agent_id: string | null;
+    ens_label: string | null;
+    ens_status: string | null;
     items: { id: number; name: string; price: number; lowest: number; aliases: string }[] | null;
   }>(
     `SELECT s.id, s.name, s.upi_id, s.upi_qr, s.style, s.lang, s.is_open, s.device_status, s.pause_until,
-       s.lat, s.lng, s.agent_id,
+       s.lat, s.lng, s.agent_id, s.ens_label, s.ens_status,
        (SELECT json_agg(json_build_object(
           'id', i.id, 'name', i.name, 'price', i.price, 'lowest', i.lowest, 'aliases', i.words
         ) ORDER BY i.id)
@@ -158,6 +163,13 @@ export async function myShop(user: Me): Promise<{
       lat: stall.lat,
       lng: stall.lng,
       agentId: stall.agent_id,
+      ens: stall.ens_label
+        ? {
+            name: ensNameOf(stall.ens_label),
+            live: stall.ens_status === "live",
+            url: ensAppUrl(ensNameOf(stall.ens_label)),
+          }
+        : null,
     },
     items: (stall.items ?? []).map((i) => ({
       id: i.id,

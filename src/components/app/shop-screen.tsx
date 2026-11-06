@@ -263,7 +263,9 @@ export function ShopScreen({
         )}
       </section>
 
-      {stall && ready && <AgentCard style={stall.style} open={open} agentId={stall.agentId} />}
+      {stall && ready && (
+        <AgentCard style={stall.style} open={open} agentId={stall.agentId} ens={stall.ens} />
+      )}
       {stall && ready && stall.agentId && <SignDeviceCreds />}
 
       {editingStall && <StallDetailsForm stall={stall} onClose={() => setEditingStall(false)} />}
@@ -275,10 +277,12 @@ function AgentCard({
   style,
   open,
   agentId,
+  ens,
 }: {
   style: ShopStall["style"];
   open: boolean;
   agentId: string | null;
+  ens: ShopStall["ens"];
 }) {
   const t = useT();
   return (
@@ -326,6 +330,24 @@ function AgentCard({
             copyLabel={t("Copy agent card address")}
           />
         )}
+        {ens &&
+          (ens.live ? (
+            <p className="grid gap-0.5 text-xs text-muted-foreground">
+              {t("Its ENS name, where other AI agents find it")}
+              <a
+                href={ens.url}
+                target="_blank"
+                rel="noreferrer"
+                className="w-fit font-mono text-sm font-semibold break-all text-primary underline-offset-2 hover:underline"
+              >
+                {ens.name}
+              </a>
+            </p>
+          ) : (
+            <p className="text-xs text-muted-foreground">
+              {t("Getting its ENS name {name}…", { name: ens.name })}
+            </p>
+          ))}
       </div>
     </section>
   );
