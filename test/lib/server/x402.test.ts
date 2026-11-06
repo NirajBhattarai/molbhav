@@ -30,7 +30,7 @@ const deal = {
   ens_label: "mohd-soyeb-khan",
   ens_status: "live",
   item: "Veg Biryani",
-  current: 176,
+  current: 150,
   status: "agreed",
   paid_tx: null,
 };
@@ -56,7 +56,7 @@ beforeEach(() => {
     ],
   });
   vi.mocked(hederaAddressFromEns).mockResolvedValue(SOYEB_EVM);
-  delete process.env.X402_INR_PER_USD;
+  delete process.env.X402_INR_PER_HBAR;
 });
 
 describe("stallPayTo", () => {
@@ -76,7 +76,7 @@ describe("stallPayTo", () => {
 });
 
 describe("quoteDeal", () => {
-  it("asks for the agreed price in USDC, to the stall, fees on the facilitator", async () => {
+  it("asks for the agreed price in HBAR, to the stall, fees on the facilitator", async () => {
     vi.mocked(query).mockResolvedValueOnce([deal]);
     mirror("0.0.11328762");
     const quote = await quoteDeal(BARGAIN, deal.stall_id, "buyer");
@@ -87,8 +87,8 @@ describe("quoteDeal", () => {
         {
           scheme: "exact",
           network: "hedera:testnet",
-          asset: "0.0.429274",
-          amount: "2000000", // ₹176 at ₹88/$ = $2.00
+          asset: "0.0.0",
+          amount: "1000000000", // ₹150 at ₹15/HBAR = 10 HBAR
           payTo: "0.0.11328762",
           extra: { feePayer: "0.0.9185802" },
         },
@@ -119,8 +119,8 @@ describe("settleDeal", () => {
   const accepted = {
     scheme: "exact",
     network: "hedera:testnet" as const,
-    asset: "0.0.429274",
-    amount: "2000000",
+    asset: "0.0.0",
+    amount: "1000000000",
     payTo: "0.0.11328762",
     maxTimeoutSeconds: 180,
     extra: { feePayer: "0.0.9185802" },
@@ -152,8 +152,8 @@ describe("settleDeal", () => {
       deal.stall_id,
       "buyer",
       "0.0.9185802@1755500000.000000000",
-      "2000000",
-      "0.0.429274",
+      "1000000000",
+      "0.0.0",
       "0.0.5001",
     ]);
   });

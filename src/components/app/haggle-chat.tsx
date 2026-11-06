@@ -22,7 +22,7 @@ import { LANG } from "@/lib/languages";
 import { HANDED_OFF, OVER_BUDGET, statusChip } from "@/lib/offer-status";
 import type { ChatView, TurnView } from "@/lib/server/bargains";
 import { rupees } from "@/lib/want";
-import { formatUsdc, hashscanTxUrl } from "@/lib/x402";
+import { formatHbar, hashscanTxUrl } from "@/lib/x402";
 import { payDeal, type PayError } from "@/lib/x402-pay";
 
 /* ─── Building the thread ────────────────────────────────────────────────────────────────── */
@@ -198,7 +198,7 @@ export function HaggleChat({ chat }: { chat: ChatView }) {
   const [payingUsdc, startUsdc] = useTransition();
   const [payError, setPayError] = useState<PayError | null>(null);
   const router = useRouter();
-  const usdc = chat.usdc ?? null;
+  const hbar = chat.hbar ?? null;
   const paidTx = chat.paidTx ?? null;
   const payUsdc = () =>
     startUsdc(async () => {
@@ -439,7 +439,7 @@ export function HaggleChat({ chat }: { chat: ChatView }) {
                 <span className="tabular-nums">· {rupees(chat.current)}</span>
               )}
             </p>
-            {usdc && (
+            {hbar && (
               <button
                 type="button"
                 disabled={payingUsdc || paying}
@@ -449,7 +449,7 @@ export function HaggleChat({ chat }: { chat: ChatView }) {
                 {payingUsdc && <Loader2 className="size-5 animate-spin" aria-hidden />}
                 {payingUsdc
                   ? t("Paying on Hedera…")
-                  : t("Pay {amount} USDC", { amount: formatUsdc(usdc) })}
+                  : t("Pay {amount} HBAR", { amount: formatHbar(hbar) })}
               </button>
             )}
             {payError && (
@@ -461,10 +461,10 @@ export function HaggleChat({ chat }: { chat: ChatView }) {
               type="button"
               disabled={paying || payingUsdc}
               onClick={() => startPay(async () => markPaid(chat.bargainId, chat.stall.id))}
-              className={usdc ? action.outline : action.primary}
+              className={hbar ? action.outline : action.primary}
             >
               {paying && <Loader2 className="size-5 animate-spin" aria-hidden />}
-              {usdc ? t("I've paid another way") : t("I've paid")}
+              {hbar ? t("I've paid another way") : t("I've paid")}
             </button>
           </>
         )}
@@ -485,8 +485,8 @@ export function HaggleChat({ chat }: { chat: ChatView }) {
             rel="noreferrer"
             className={`${focusRing} flex items-center justify-center gap-1.5 rounded-md text-sm text-muted-foreground underline-offset-2 hover:underline`}
           >
-            {usdc
-              ? t("Paid {amount} USDC on Hedera · HashScan", { amount: formatUsdc(usdc) })
+            {hbar
+              ? t("Paid {amount} HBAR on Hedera · HashScan", { amount: formatHbar(hbar) })
               : t("Paid on Hedera · HashScan")}
             <ExternalLink className="size-3.5" aria-hidden />
           </a>
