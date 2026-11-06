@@ -285,6 +285,8 @@ async function loadChat(bargainId: string, stallId: string): Promise<CachedChat<
 
 export type OpenStallMatch = {
   stallId: string;
+  /** Stall A2A agent id; null until the shopkeeper has set UPI. */
+  agentId: string | null;
   itemId: number;
   itemName: string;
   price: number;
