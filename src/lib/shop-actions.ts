@@ -3,6 +3,7 @@
 import { refresh } from "next/cache";
 import { isLang, type Lang } from "@/lib/languages";
 import { aliasesFor, geminiConfigured, geminiJSON } from "@/lib/server/gemini";
+import { hideStallDeals, shopDealsEnded } from "@/lib/server/bargains";
 import { ensureUser, me, type StallStatus, type Style } from "@/lib/server/shop";
 import { buildClaimPack, claimSignWithCode } from "@/lib/server/sign-claim";
 import { stallDeviceToken } from "@/lib/server/stall-device";
@@ -140,6 +141,20 @@ export async function stallSignCredentials(): Promise<{
 export async function linkStallSign(claimCode: string) {
   const user = await me();
   return claimSignWithCode(user.id, claimCode);
+}
+
+/** Clears deals from the stall's list (the buyer keeps theirs). */
+/** The ended group on the Bargains screen, loaded when it's opened. */
+export async function loadEndedDeals() {
+  return shopDealsEnded(await me());
+}
+
+export async function hideDeals(ids: string[]) {
+  const user = await me();
+  const uuids = ids.filter((id) => /^[0-9a-f-]{36}$/i.test(id)).slice(0, 100);
+  if (!uuids.length) return;
+  await hideStallDeals(user, uuids);
+  refresh();
 }
 
 /**

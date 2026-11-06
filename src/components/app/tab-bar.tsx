@@ -25,8 +25,8 @@ export function TabBar() {
   const path = usePathname();
   const role = useRole();
   const t = useT();
-  // Unknown until the role cookie is read. A stall chat (/bargains/:id/:stall) owns the bottom chrome.
-  if (!role || /^\/bargains\/[^/]+\/[^/]+/.test(path)) return null;
+  // Unknown until the role cookie is read. A deal chat owns the bottom chrome.
+  if (!role || /^\/bargains\/[^/]+\/[^/]+/.test(path) || /^\/shop\/deals\//.test(path)) return null;
 
   return (
     <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-card/95 pb-[env(safe-area-inset-bottom)] backdrop-blur">
