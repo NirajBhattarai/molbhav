@@ -525,19 +525,25 @@ bool request(const char* method, const char* path, const String& body, String& o
   return serverOk;
 }
 
-// Applies the server's view of the stall. While a change made on the sign is waiting to be sent,
-// the sign wins and the server's status is ignored.
+// Applies the server's view of the stall (phone app or last saved). Right after a button press
+// the sign holds its local status briefly so an in-flight push isn't overwritten; then phone wins.
 void applyState(const String& json) {
   JsonDocument doc;
   if (deserializeJson(doc, json)) return;
 
-  if (!dirty && doc["status"].is<const char*>()) {
+  bool holdLocal = dirty && (millis() - statusChangedAt < LOCAL_STATUS_HOLD_MS);
+  if (!holdLocal && doc["status"].is<const char*>()) {
     Status next = statusFromName(doc["status"].as<const char*>(), status);
     if (next == ST_PAUSED) {
       uint32_t secs = doc["pauseSecondsLeft"] | 0;
       pauseEndsAt = millis() + secs * 1000UL;
     }
-    if (next != status) setStatus(next, false);
+    if (next != status) {
+      dirty = false;
+      setStatus(next, false);
+    } else if (dirty) {
+      dirty = false;  // server already matches; stop retrying the button push
+    }
   }
 
   const char* name = doc["stallName"] | "";
@@ -578,12 +584,13 @@ void pushStatus() {
 void syncServer() {
   if (!configured() || !serverEnabled() || WiFi.status() != WL_CONNECTED) return;
   uint32_t now = millis();
-  if (dirty) {
-    if (lastPushTry == 0 || now - lastPushTry >= PUSH_RETRY_MS) {
-      lastPushTry = now;
-      pushStatus();
-    }
-  } else if (lastPoll == 0 || now - lastPoll >= POLL_INTERVAL_MS) {
+  // Button → phone: push local change.
+  if (dirty && (lastPushTry == 0 || now - lastPushTry >= PUSH_RETRY_MS)) {
+    lastPushTry = now;
+    pushStatus();
+  }
+  // Phone → sign: always poll so Open/Paused/Closed from the app reaches the lights.
+  if (lastPoll == 0 || now - lastPoll >= POLL_INTERVAL_MS) {
     lastPoll = now;
     String out;
     if (request("GET", STATE_PATH, "", out)) applyState(out);

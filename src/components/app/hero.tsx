@@ -84,3 +84,96 @@ export function LiveToggle({
     </button>
   );
 }
+
+/** Open / Paused / Closed — mirrors the stall sign buttons. */
+export function StallStatusControl({
+  status,
+  onChange,
+  hint,
+  disabled,
+  pauseSecondsLeft = 0,
+}: {
+  status: "open" | "closed" | "paused";
+  onChange: (next: "open" | "closed" | "paused") => void;
+  hint: string;
+  disabled?: boolean;
+  pauseSecondsLeft?: number;
+}) {
+  const hintId = useId();
+  const options = [
+    { id: "open" as const, label: "Open" },
+    { id: "paused" as const, label: "Paused" },
+    { id: "closed" as const, label: "Closed" },
+  ];
+  const title = status === "open" ? "Open for buyers" : status === "paused" ? "Paused" : "Closed";
+  const pauseHint =
+    status === "paused" && pauseSecondsLeft > 0
+      ? `Back in ${Math.max(1, Math.ceil(pauseSecondsLeft / 60))} min.`
+      : null;
+
+  return (
+    <div className="grid gap-2">
+      <div
+        className={`flex min-h-14 items-center gap-3 rounded-2xl px-3 py-2.5 ${
+          status === "open"
+            ? "bg-hero-success/15 ring-1 ring-hero-success/40"
+            : status === "paused"
+              ? "bg-amber-400/15 ring-1 ring-amber-400/35"
+              : "bg-hero-foreground/[0.08]"
+        }`}
+      >
+        <span aria-hidden className="relative flex size-3 shrink-0 items-center justify-center">
+          {status === "open" && (
+            <span className="absolute inset-0 rounded-full bg-hero-success opacity-0 motion-safe:animate-[radar_2.4s_var(--ease-out)_infinite]" />
+          )}
+          <span
+            className={`relative size-2.5 rounded-full ${
+              status === "open"
+                ? "bg-hero-success"
+                : status === "paused"
+                  ? "bg-amber-400"
+                  : "bg-hero-foreground/40"
+            }`}
+          />
+        </span>
+        <span className="grid min-w-0 flex-1">
+          <span className="font-semibold">{title}</span>
+          <span id={hintId} className="text-sm text-pretty text-hero-foreground/75">
+            {pauseHint ?? hint}
+          </span>
+        </span>
+      </div>
+      <div
+        role="radiogroup"
+        aria-label="Stall status"
+        aria-describedby={hintId}
+        className="grid grid-cols-3 gap-1.5"
+      >
+        {options.map((opt) => {
+          const on = status === opt.id;
+          return (
+            <button
+              key={opt.id}
+              type="button"
+              role="radio"
+              aria-checked={on}
+              disabled={disabled}
+              onClick={() => onChange(opt.id)}
+              className={`min-h-11 rounded-xl text-sm font-semibold transition-[background-color,transform,opacity] duration-150 ease-out active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-45 disabled:active:scale-100 ${
+                on
+                  ? opt.id === "open"
+                    ? "bg-hero-success text-hero-foreground"
+                    : opt.id === "paused"
+                      ? "bg-amber-400 text-hero-foreground"
+                      : "bg-hero-foreground/25 text-hero-foreground"
+                  : "bg-hero-foreground/[0.08] text-hero-foreground/80 hover:bg-hero-foreground/[0.14]"
+              }`}
+            >
+              {opt.label}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
