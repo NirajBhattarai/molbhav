@@ -28,3 +28,27 @@ export function parseUpi(input: string): UpiPayee | { error: string } {
   const name = url.searchParams.get("pn")?.trim();
   return { vpa: vpa.toLowerCase(), name: name || undefined, qr: text };
 }
+
+/**
+ * The link a buyer's UPI app opens to pay `amount` rupees. A scanned merchant QR is kept as it is
+ * (its signed fields are what UPI apps check) with only the missing amount and currency added.
+ */
+export function upiPayLink(payee: UpiPayee, amount: number, note?: string): string {
+  const am = amount.toFixed(2);
+  if (payee.qr) {
+    const query = payee.qr.slice(payee.qr.indexOf("?") + 1);
+    const keys = new Set(
+      query.split("&").map((kv) => decodeURIComponent(kv.split("=")[0] ?? "").toLowerCase()),
+    );
+    const add = [...(keys.has("am") ? [] : [`am=${am}`]), ...(keys.has("cu") ? [] : ["cu=INR"])];
+    return `upi://pay?${[query, ...add].filter(Boolean).join("&")}`;
+  }
+  const params = new URLSearchParams({
+    pa: payee.vpa,
+    ...(payee.name ? { pn: payee.name } : {}),
+    am,
+    cu: "INR",
+  });
+  if (note) params.set("tn", note.slice(0, 50));
+  return `upi://pay?${params.toString().replace(/\+/g, "%20").replace(/%40/g, "@")}`;
+}

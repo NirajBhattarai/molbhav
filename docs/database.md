@@ -12,6 +12,7 @@ Migrations (apply with `npm run db:migrate`):
 - [`0007_bargains.sql`](../db/migrations/0007_bargains.sql) — `bargains`, `offers`, `turns`
 - [`0008_one_deal_per_bargain.sql`](../db/migrations/0008_one_deal_per_bargain.sql) — at most one agreed/paid offer per bargain
 - [`0009_offer_stall_hidden.sql`](../db/migrations/0009_offer_stall_hidden.sql) — shop can clear ended deals from their list (`offers.stall_hidden`)
+- [`0010_a2a_stall.sql`](../db/migrations/0010_a2a_stall.sql) — A2A stall tasks + `bargains.source` / nullable `buyer_id`
 
 ## Purpose
 

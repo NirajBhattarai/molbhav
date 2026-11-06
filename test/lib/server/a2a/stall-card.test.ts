@@ -5,6 +5,8 @@ const sample: StallAgent = {
   stallId: "u-test",
   agentId: "agent_0123456789",
   name: "Ramu Tea Stall",
+  upi: "ramu@okaxis",
+  qr: null,
   style: "friendly",
   lang: "en",
   open: true,

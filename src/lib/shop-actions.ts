@@ -3,6 +3,7 @@
 import { refresh } from "next/cache";
 import { isLang, type Lang } from "@/lib/languages";
 import { aliasesFor, geminiConfigured, geminiJSON } from "@/lib/server/gemini";
+import { forgetOwnerAgent, ownerAgentId, ownerAgentMoved } from "@/lib/server/a2a/stall";
 import { hideStallDeals, shopDealsEnded } from "@/lib/server/bargains";
 import { ensureUser, me, type StallStatus, type Style } from "@/lib/server/shop";
 import { buildClaimPack, claimSignWithCode } from "@/lib/server/sign-claim";
@@ -57,8 +58,11 @@ export async function saveStallDetails(details: {
   const lang = isLang(details.language) ? details.language : "en";
 
   await ensureUser(user);
+  // Read before the write: a new UPI gives the stall a new agent id, and the old one's cache must go.
+  const before = await ownerAgentId(user.id);
+  let after: string | null;
   try {
-    await query(
+    const [row] = await query<{ agent_id: string | null }>(
       `INSERT INTO stalls (id, owner_id, name, upi_id, upi_qr, style, lang, is_open, agent_id, updated_at)
        VALUES ($2, $1, $3, $4, $5, $6, $7, false,
          CASE WHEN $4::text IS NULL THEN NULL
@@ -74,14 +78,17 @@ export async function saveStallDetails(details: {
          updated_at = now(),
          is_open = stalls.is_open AND EXCLUDED.name <> '' AND EXCLUDED.upi_id IS NOT NULL
            AND stalls.lat IS NOT NULL AND stalls.lng IS NOT NULL
-           AND EXISTS (SELECT 1 FROM stall_items i WHERE i.stall_id = stalls.id AND i.active)`,
+           AND EXISTS (SELECT 1 FROM stall_items i WHERE i.stall_id = stalls.id AND i.active)
+       RETURNING agent_id`,
       [user.id, newStallId(), name, upi, qr, style, lang],
     );
+    after = row?.agent_id ?? null;
   } catch (e) {
     if ((e as { constraint?: string }).constraint === "stalls_agent_id_key")
       return { error: "Another stall already takes payments at this UPI ID." };
     throw e;
   }
+  await ownerAgentMoved(user.id, before, after);
   refresh();
   return null;
 }
@@ -98,6 +105,7 @@ export async function pinLocation(lat: number, lng: number): Promise<{ error: st
      ON CONFLICT (owner_id) DO UPDATE SET lat = EXCLUDED.lat, lng = EXCLUDED.lng, updated_at = now()`,
     [user.id, newStallId(), lat, lng],
   );
+  await forgetOwnerAgent(user.id);
   refresh();
   return null;
 }
@@ -191,6 +199,7 @@ export async function setStallStatus(status: StallStatus, pauseMinutes = 10) {
      WHERE owner_id = $1`,
     [user.id, next, minutes],
   );
+  await forgetOwnerAgent(user.id);
   refresh();
 }
 
@@ -232,6 +241,7 @@ export async function saveItem(item: {
       `INSERT INTO stall_items (stall_id, name, words, price, lowest) VALUES ($1, $2, $3, $4, $5)`,
       [stall, name, words, price, lowest],
     );
+  await forgetOwnerAgent((await me()).id);
   refresh();
   return null;
 }
@@ -249,6 +259,7 @@ export async function removeItem(id: number) {
        AND NOT EXISTS (SELECT 1 FROM stall_items i WHERE i.stall_id = s.id AND i.active)`,
     [user.id],
   );
+  await forgetOwnerAgent(user.id);
   refresh();
 }
 
@@ -394,6 +405,7 @@ export async function saveScannedItems(
           },
     ),
   );
+  await forgetOwnerAgent((await me()).id);
   refresh();
   const updated = list.filter((it) => it.target).length;
   return { added: list.length - updated, updated };
