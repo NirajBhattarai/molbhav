@@ -2,13 +2,19 @@ import { notFound } from "next/navigation";
 import { Suspense } from "react";
 import { HaggleChat } from "@/components/app/haggle-chat";
 import { me, myChat } from "@/lib/server/bargains";
+import { payingBreaks } from "@/lib/server/limits";
 
 async function ChatContent({ params }: { params: Promise<{ id: string; stallId: string }> }) {
   const { id, stallId } = await params;
-  const chat = await myChat(await me(), id, stallId);
+  const user = await me();
+  const chat = await myChat(user, id, stallId);
   if (!chat) notFound();
+  const overLimit =
+    chat.status === "agreed" && chat.current !== null
+      ? await payingBreaks(user.id, chat.current)
+      : null;
 
-  return <HaggleChat chat={chat} />;
+  return <HaggleChat chat={chat} overLimit={overLimit} />;
 }
 
 export default async function StallChatPage({

@@ -7,6 +7,8 @@ vi.mock("@/lib/server/chat-cache", () => ({ wroteChat: vi.fn() }));
 vi.mock("@/lib/server/a2a/client", () => ({ appBase: () => "https://molbhav.test" }));
 vi.mock("@/lib/server/ens", () => ({ hederaAddressFromEns: vi.fn() }));
 vi.mock("@/lib/server/hedera-wallet", () => ({ magicHederaAccountOf: vi.fn() }));
+vi.mock("@/lib/server/limits", () => ({ payingBreaks: vi.fn(async () => null) }));
+vi.mock("@/lib/server/auto-order", () => ({ orderPaid: vi.fn() }));
 
 const facilitator = { getSupported: vi.fn(), verify: vi.fn(), settle: vi.fn() };
 vi.mock("@x402/core/http", () => ({
@@ -20,6 +22,8 @@ vi.mock("@x402/core/http", () => ({
 import { query } from "@/lib/server/db";
 import { hederaAddressFromEns } from "@/lib/server/ens";
 import { magicHederaAccountOf } from "@/lib/server/hedera-wallet";
+import { orderPaid } from "@/lib/server/auto-order";
+import { payingBreaks } from "@/lib/server/limits";
 import type { PaymentPayload } from "@x402/core/types";
 import { quoteDeal, settleDeal, stallPayTo } from "@/lib/server/x402";
 
@@ -122,6 +126,15 @@ describe("quoteDeal", () => {
   });
 });
 
+it("won't quote a deal over the buyer's limits", async () => {
+  vi.mocked(query).mockResolvedValueOnce([deal]);
+  vi.mocked(payingBreaks).mockResolvedValueOnce({ kind: "order", limit: 100 });
+  await expect(quoteDeal(BARGAIN, deal.stall_id, "buyer")).resolves.toMatchObject({
+    ok: false,
+    status: 403,
+  });
+});
+
 describe("settleDeal", () => {
   const accepted = {
     scheme: "exact",
@@ -153,6 +166,11 @@ describe("settleDeal", () => {
     });
     const update = vi.mocked(query).mock.calls[1]!;
     expect(update[0]).toMatch(/SET status = 'paid', paid_tx = \$4/);
+    expect(orderPaid).toHaveBeenCalledWith(
+      BARGAIN,
+      deal.stall_id,
+      "0.0.9185802@1755500000.000000000",
+    );
     expect(update[1]).toEqual([
       BARGAIN,
       deal.stall_id,

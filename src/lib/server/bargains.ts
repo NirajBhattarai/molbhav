@@ -1,4 +1,5 @@
 import "server-only";
+import type { AutoOrder } from "@/lib/limits";
 import { fillChat, readChat, wroteChat, type CachedChat } from "@/lib/server/chat-cache";
 import { query } from "@/lib/server/db";
 import { ensureUser, me, type Me } from "@/lib/server/shop";
@@ -39,6 +40,12 @@ export type BargainView = {
   budget: number | null;
   minutesAgo: number;
   offers: OfferView[];
+  /** Snapshotted at create: agent may agree the cheapest deal. */
+  autoAgree: boolean;
+  /** Snapshotted at create: agent may pay after the countdown. */
+  autoOrder: boolean;
+  /** What the auto-order agent decided for this bargain, if anything. */
+  auto: AutoOrder | null;
 };
 
 export type TurnView = {
@@ -89,8 +96,11 @@ export async function myBargains(user: Me): Promise<BargainView[]> {
     title: string;
     budget: number | null;
     created_at: Date;
+    auto_agree: boolean;
+    auto_order: boolean;
+    auto: AutoOrder | null;
   }>(
-    `SELECT id, want, title, budget, created_at
+    `SELECT id, want, title, budget, created_at, auto_agree, auto_order, auto
      FROM bargains WHERE buyer_id = $1
      ORDER BY created_at DESC LIMIT 40`,
     [user.id],
@@ -104,6 +114,9 @@ export async function myBargains(user: Me): Promise<BargainView[]> {
     budget: r.budget,
     minutesAgo: ago(r.created_at),
     offers: offers.get(r.id) ?? [],
+    autoAgree: r.auto_agree,
+    autoOrder: r.auto_order,
+    auto: r.auto,
   }));
 }
 
@@ -116,8 +129,11 @@ export async function myBargain(user: Me, id: string): Promise<BargainView | nul
     title: string;
     budget: number | null;
     created_at: Date;
+    auto_agree: boolean;
+    auto_order: boolean;
+    auto: AutoOrder | null;
   }>(
-    `SELECT id, want, title, budget, created_at
+    `SELECT id, want, title, budget, created_at, auto_agree, auto_order, auto
      FROM bargains WHERE id = $1::uuid AND buyer_id = $2`,
     [id, user.id],
   );
@@ -130,6 +146,9 @@ export async function myBargain(user: Me, id: string): Promise<BargainView | nul
     budget: row.budget,
     minutesAgo: ago(row.created_at),
     offers: offers.get(row.id) ?? [],
+    autoAgree: row.auto_agree,
+    autoOrder: row.auto_order,
+    auto: row.auto,
   };
 }
 
@@ -317,11 +336,21 @@ export async function openBargain(input: {
   budget: number | null;
   buyerLang: Lang;
   stalls: OpenStallMatch[];
+  autoAgree?: boolean;
+  autoOrder?: boolean;
 }): Promise<string> {
   const [b] = await query<{ id: string }>(
-    `INSERT INTO bargains (buyer_id, want, title, budget, buyer_lang)
-     VALUES ($1, $2, $3, $4, $5) RETURNING id`,
-    [input.buyerId, input.want, input.title, input.budget, input.buyerLang],
+    `INSERT INTO bargains (buyer_id, want, title, budget, buyer_lang, auto_agree, auto_order)
+     VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id`,
+    [
+      input.buyerId,
+      input.want,
+      input.title,
+      input.budget,
+      input.buyerLang,
+      input.autoAgree ?? false,
+      input.autoOrder ?? false,
+    ],
   );
   for (const s of input.stalls) {
     await query(
@@ -646,4 +675,77 @@ export async function hideStallDeals(user: Me, bargainIds: string[]) {
      WHERE stall_id = $1 AND bargain_id = ANY($2::uuid[])`,
     [stall.id, bargainIds],
   );
+}
+
+/**
+ * Agree this stall's held price for the buyer and decline the rest. Used by the Agree button and
+ * by auto-agree after seeds hand off. Returns the agreed price, or null if nothing was taken.
+ */
+export async function agreeOfferFor(
+  buyerId: string,
+  bargainId: string,
+  stallId: string,
+): Promise<number | null> {
+  if (!isBargainId(bargainId)) return null;
+
+  let won: { current: number; version: number }[];
+  try {
+    won = await query<{ current: number; version: number }>(
+      `UPDATE offers o SET status = 'agreed', version = o.version + 1, updated_at = now()
+       FROM bargains b
+       WHERE b.id = o.bargain_id AND b.buyer_id = $3
+         AND o.bargain_id = $1::uuid AND o.stall_id = $2
+         AND o.status = 'haggling' AND o.current IS NOT NULL
+       RETURNING o.current, o.version`,
+      [bargainId, stallId, buyerId],
+    );
+  } catch (err) {
+    if ((err as { code?: string }).code === "23505") return null;
+    throw err;
+  }
+  if (!won.length) return null;
+  const price = won[0].current;
+  await wroteChat(bargainId, stallId, won[0].version);
+
+  await addLine({
+    bargainId,
+    stallId,
+    speaker: "agent",
+    msg: "I'll take this deal at {price}.",
+    vars: { price: rupees(price) },
+    status: "agreed",
+    current: price,
+  });
+  await addLine({
+    bargainId,
+    stallId,
+    speaker: "stall",
+    msg: "Okay, {price}. Deal.",
+    vars: { price: rupees(price) },
+    status: "agreed",
+    current: price,
+  });
+
+  const others = await query<{ stall_id: string; current: number | null; version: number }>(
+    `UPDATE offers SET status = 'declined', version = version + 1, updated_at = now()
+     WHERE bargain_id = $1::uuid AND stall_id <> $2 AND status = 'haggling'
+     RETURNING stall_id, current, version`,
+    [bargainId, stallId],
+  );
+  for (const o of others) {
+    await wroteChat(bargainId, o.stall_id, o.version);
+    await addLine({
+      bargainId,
+      stallId: o.stall_id,
+      speaker: "agent",
+      msg: "I found it cheaper at another stall. Thank you!",
+      status: "declined",
+      current: o.current,
+    });
+  }
+
+  await Promise.all(
+    [stallId, ...others.map((o) => o.stall_id)].map((s) => refreshChat(bargainId, s)),
+  );
+  return price;
 }

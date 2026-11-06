@@ -189,7 +189,14 @@ const EVENT_TONE = {
 /* ─── The chat ───────────────────────────────────────────────────────────────────────────── */
 
 /** One stall's haggle, laid out like a messaging app: header, pinned deal, thread, action bar. */
-export function HaggleChat({ chat }: { chat: ChatView }) {
+export function HaggleChat({
+  chat,
+  overLimit = null,
+}: {
+  chat: ChatView;
+  /** When set, the agreed price would break the buyer's spending limits. */
+  overLimit?: { kind: "order" | "day"; limit: number } | null;
+}) {
   const t = useT();
   const format = useFormat();
   const clock = useClock();
@@ -439,33 +446,49 @@ export function HaggleChat({ chat }: { chat: ChatView }) {
                 <span className="tabular-nums">· {rupees(chat.current)}</span>
               )}
             </p>
-            {hbar && (
-              <button
-                type="button"
-                disabled={payingUsdc || paying}
-                onClick={payUsdc}
-                className={action.primary}
-              >
-                {payingUsdc && <Loader2 className="size-5 animate-spin" aria-hidden />}
-                {payingUsdc
-                  ? t("Paying on Hedera…")
-                  : t("Pay {amount} HBAR", { amount: formatHbar(hbar) })}
-              </button>
-            )}
-            {payError && (
-              <p role="alert" className="text-center text-sm text-destructive">
-                {t(payError.error, { account: payError.account ?? "" })}
+            {overLimit ? (
+              <p role="status" className="text-center text-sm font-medium text-pretty">
+                {t(
+                  overLimit.kind === "order"
+                    ? "This is over your limit of {price} for one order."
+                    : "This would pass your limit of {price} for one day.",
+                  { price: rupees(overLimit.limit) },
+                )}{" "}
+                <Link href="/profile" className="font-semibold text-primary underline">
+                  {t("Change it in Profile")}
+                </Link>
               </p>
+            ) : (
+              <>
+                {hbar && (
+                  <button
+                    type="button"
+                    disabled={payingUsdc || paying}
+                    onClick={payUsdc}
+                    className={action.primary}
+                  >
+                    {payingUsdc && <Loader2 className="size-5 animate-spin" aria-hidden />}
+                    {payingUsdc
+                      ? t("Paying on Hedera…")
+                      : t("Pay {amount} HBAR", { amount: formatHbar(hbar) })}
+                  </button>
+                )}
+                {payError && (
+                  <p role="alert" className="text-center text-sm text-destructive">
+                    {t(payError.error, { account: payError.account ?? "" })}
+                  </p>
+                )}
+                <button
+                  type="button"
+                  disabled={paying || payingUsdc}
+                  onClick={() => startPay(async () => markPaid(chat.bargainId, chat.stall.id))}
+                  className={hbar ? action.outline : action.primary}
+                >
+                  {paying && <Loader2 className="size-5 animate-spin" aria-hidden />}
+                  {hbar ? t("I've paid another way") : t("I've paid")}
+                </button>
+              </>
             )}
-            <button
-              type="button"
-              disabled={paying || payingUsdc}
-              onClick={() => startPay(async () => markPaid(chat.bargainId, chat.stall.id))}
-              className={hbar ? action.outline : action.primary}
-            >
-              {paying && <Loader2 className="size-5 animate-spin" aria-hidden />}
-              {hbar ? t("I've paid another way") : t("I've paid")}
-            </button>
           </>
         )}
 

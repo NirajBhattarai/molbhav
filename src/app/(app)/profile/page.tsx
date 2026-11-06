@@ -2,8 +2,10 @@ import { Suspense } from "react";
 import { ProfileAccount } from "@/components/app/profile-account";
 import { ProfileSettings } from "@/components/app/profile-settings";
 import { Screen } from "@/components/app/screen";
+import { SpendingLimits } from "@/components/app/spending-limits";
 import { T } from "@/lib/i18n";
 import { getDiscovery } from "@/lib/server/discovery";
+import { getLimits } from "@/lib/server/limits";
 import { ensureUser, me } from "@/lib/server/shop";
 
 export default function ProfilePage() {
@@ -11,6 +13,9 @@ export default function ProfilePage() {
     <Screen title={<T msg="Profile" />} back>
       <Suspense fallback={<AccountSkeleton />}>
         <Account />
+      </Suspense>
+      <Suspense fallback={null}>
+        <Limits />
       </Suspense>
       <Suspense fallback={null}>
         <Settings />
@@ -22,6 +27,12 @@ export default function ProfilePage() {
 async function Account() {
   const { email } = await me();
   return <ProfileAccount email={email} />;
+}
+
+async function Limits() {
+  const user = await me();
+  await ensureUser(user);
+  return <SpendingLimits limits={await getLimits(user.id)} />;
 }
 
 async function Settings() {
