@@ -11,6 +11,14 @@ export { me, ensureUser };
 
 export type StallBrief = { id: string; name: string; lang: Lang };
 
+/** The newest chat line of an offer, for previews in lists. */
+export type LastLine = {
+  speaker: "agent" | "stall" | "buyer";
+  msg: string | null;
+  vars: Record<string, string> | null;
+  text: string | null;
+};
+
 export type OfferView = {
   stall: StallBrief;
   item: string;
@@ -18,6 +26,9 @@ export type OfferView = {
   asked: number | null;
   current: number | null;
   pending: boolean;
+  last: LastLine | null;
+  /** Minutes since this offer last changed. */
+  minutesAgo: number;
 };
 
 export type BargainView = {
@@ -36,6 +47,10 @@ export type TurnView = {
   vars: Record<string, string> | null;
   text: string | null;
   amount: number | null;
+  /** Offer status after this line: marks where a deal was agreed or a stall said no. */
+  status: OfferStatus;
+  /** ISO time the line was written. */
+  at: string;
 };
 
 export type ChatView = {
@@ -124,12 +139,25 @@ async function offersFor(bargainIds: string[]) {
     status: OfferStatus;
     asked: number | null;
     current: number | null;
+    updated_at: Date;
+    last_speaker: LastLine["speaker"] | null;
+    last_msg: string | null;
+    last_vars: Record<string, string> | null;
+    last_text: string | null;
+    last_at: Date | null;
   }>(
     `SELECT o.bargain_id, o.stall_id, s.name AS stall_name, s.lang AS stall_lang,
-            i.name AS item_name, o.status, o.asked, o.current
+            i.name AS item_name, o.status, o.asked, o.current, o.updated_at,
+            l.speaker AS last_speaker, l.msg AS last_msg, l.vars AS last_vars,
+            l.text AS last_text, l.at AS last_at
      FROM offers o
      JOIN stalls s ON s.id = o.stall_id
      JOIN stall_items i ON i.id = o.item_id
+     LEFT JOIN LATERAL (
+       SELECT speaker, msg, vars, text, at FROM turns t
+       WHERE t.bargain_id = o.bargain_id AND t.stall_id = o.stall_id
+       ORDER BY t.at DESC, t.id DESC LIMIT 1
+     ) l ON true
      WHERE o.bargain_id = ANY($1::uuid[])
      ORDER BY o.updated_at DESC`,
     [bargainIds],
@@ -137,6 +165,7 @@ async function offersFor(bargainIds: string[]) {
   const map = new Map<string, OfferView[]>();
   for (const r of rows) {
     const list = map.get(r.bargain_id) ?? [];
+    const changed = r.last_at && r.last_at > r.updated_at ? r.last_at : r.updated_at;
     list.push({
       stall: { id: r.stall_id, name: r.stall_name, lang: r.stall_lang },
       item: r.item_name,
@@ -144,6 +173,10 @@ async function offersFor(bargainIds: string[]) {
       asked: r.asked,
       current: r.current,
       pending: r.current === null && r.status === "haggling",
+      last: r.last_speaker
+        ? { speaker: r.last_speaker, msg: r.last_msg, vars: r.last_vars, text: r.last_text }
+        : null,
+      minutesAgo: ago(changed),
     });
     map.set(r.bargain_id, list);
   }
@@ -204,8 +237,10 @@ async function loadChat(bargainId: string, stallId: string): Promise<CachedChat<
     vars: Record<string, string> | null;
     text: string | null;
     current: number | null;
+    status: OfferStatus;
+    at: Date;
   }>(
-    `SELECT id::text, speaker, msg, vars, text, current
+    `SELECT id::text, speaker, msg, vars, text, current, status, at
      FROM turns
      WHERE bargain_id = $1::uuid AND stall_id = $2
      ORDER BY at ASC, id ASC`,
@@ -240,6 +275,8 @@ async function loadChat(bargainId: string, stallId: string): Promise<CachedChat<
         vars: t.vars,
         text: t.text,
         amount: t.current,
+        status: t.status,
+        at: t.at.toISOString(),
       })),
       next,
     },
