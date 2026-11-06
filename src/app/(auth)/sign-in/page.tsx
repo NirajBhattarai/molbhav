@@ -6,14 +6,18 @@ import { BlockPrint } from "@/components/brand/block-print";
 import { LogoMark } from "@/components/brand/logo";
 import { action, focusRing } from "@/components/ui/styles";
 import { startSession } from "@/lib/auth-actions";
+import { useT, useTx, type Text } from "@/lib/i18n";
 import { OtpError, startEmailOtp, type OtpEvent, type OtpSession } from "@/lib/magic";
 import { enterApp } from "@/lib/role";
 
 export default function SignInPage() {
+  const t = useT();
+  const tx = useTx();
   const [step, setStep] = useState<"email" | "code">("email");
   const [email, setEmail] = useState("");
   const [code, setCode] = useState("");
-  const [error, setError] = useState("");
+  // Kept in English and shown through tx(), so it switches with the app language.
+  const [error, setError] = useState<Text>("");
   const [busy, setBusy] = useState(false);
   const [approve, setApprove] = useState(false);
   const emailRef = useRef<HTMLInputElement>(null);
@@ -100,7 +104,7 @@ export default function SignInPage() {
           </span>
           {step === "email" && (
             <h1 className="mt-6 font-display text-[1.75rem] leading-[1.1] font-bold tracking-tight text-balance">
-              Say what you want. Your agent bargains.
+              {t("Say what you want. Your agent bargains.")}
             </h1>
           )}
         </div>
@@ -110,7 +114,7 @@ export default function SignInPage() {
         {step === "email" ? (
           <form onSubmit={sendCode} noValidate className="flex flex-1 flex-col">
             <label htmlFor="email" className="text-sm font-medium">
-              Email
+              {t("Email")}
             </label>
             <input
               ref={emailRef}
@@ -130,24 +134,26 @@ export default function SignInPage() {
             />
             {error && (
               <p id="email-error" role="alert" className="mt-2 text-sm text-destructive">
-                {error}
+                {tx(error)}
               </p>
             )}
-            <p className="mt-2 text-sm text-muted-foreground">We email you a 6-digit code.</p>
+            <p className="mt-2 text-sm text-muted-foreground">
+              {t("We email you a 6-digit code.")}
+            </p>
             <button
               type="submit"
               disabled={busy}
               className={`${action.primary} mt-auto disabled:opacity-60`}
             >
-              {busy ? "Sending…" : "Send code"}
+              {busy ? t("Sending…") : t("Send code")}
               {!busy && <ArrowRight className="size-5" aria-hidden />}
             </button>
           </form>
         ) : (
           <form onSubmit={verify} noValidate className="flex flex-1 flex-col">
-            <h1 className="font-display text-2xl font-bold">Enter the code</h1>
+            <h1 className="font-display text-2xl font-bold">{t("Enter the code")}</h1>
             <p className="mt-1 [overflow-wrap:anywhere] text-muted-foreground">
-              Sent to {email.trim()}.{" "}
+              {t("Sent to {email}.", { email: email.trim() })}{" "}
               <button
                 type="button"
                 onClick={() => {
@@ -161,11 +167,11 @@ export default function SignInPage() {
                 }}
                 className={`rounded-sm font-medium text-primary underline underline-offset-4 ${focusRing}`}
               >
-                Change
+                {t("Change")}
               </button>
             </p>
             <label htmlFor="code" className="mt-6 text-sm font-medium">
-              6-digit code
+              {t("6-digit code")}
             </label>
             <input
               ref={codeRef}
@@ -185,13 +191,14 @@ export default function SignInPage() {
             />
             {error && (
               <p id="code-error" role="alert" className="mt-2 text-sm text-destructive">
-                {error}
+                {tx(error)}
               </p>
             )}
             {approve && (
               <p role="status" className="mt-4 rounded-lg bg-muted p-3 text-sm">
-                New device: open the link we emailed to approve it. This screen continues on its
-                own.
+                {t(
+                  "New device: open the link we emailed to approve it. This screen continues on its own.",
+                )}
               </p>
             )}
             <button
@@ -199,7 +206,7 @@ export default function SignInPage() {
               disabled={busy}
               className={`${action.primary} mt-auto disabled:opacity-60`}
             >
-              {busy ? "Checking…" : "Verify and continue"}
+              {busy ? t("Checking…") : t("Verify and continue")}
             </button>
           </form>
         )}

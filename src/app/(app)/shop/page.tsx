@@ -1,5 +1,6 @@
 import { Suspense } from "react";
 import { ShopScreen } from "@/components/app/shop-screen";
+import { T } from "@/lib/i18n";
 import { me, myShop } from "@/lib/server/shop";
 
 async function ShopContent() {
@@ -20,7 +21,7 @@ export default function ShopPage() {
     <Suspense
       fallback={
         <div className="mx-auto flex min-h-dvh max-w-md items-center justify-center text-sm text-muted-foreground">
-          Loading your stall…
+          <T msg="Loading your stall…" />
         </div>
       }
     >

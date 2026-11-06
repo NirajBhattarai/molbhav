@@ -57,7 +57,9 @@ export function ProfileAccount({ email }: { email: string }) {
               className="grid min-w-0 flex-1 rounded-xl py-1 transition-colors hover:bg-hero-foreground/10"
             >
               <span className="text-xs text-hero-foreground/75">
-                Wallet · Hedera{network === "testnet" ? " testnet" : ""} · HashScan
+                {network === "testnet"
+                  ? t("Wallet · Hedera testnet · HashScan")
+                  : t("Wallet · Hedera · HashScan")}
               </span>
               <span
                 translate="no"
@@ -116,17 +118,19 @@ export function ProfileAccount({ email }: { email: string }) {
         </ul>
         {network === "testnet" && (
           <p className="mt-3 rounded-2xl bg-secondary/15 p-4 text-sm text-pretty">
-            You’re on Hedera testnet: everything uses test money, so nothing here costs real funds.{" "}
-            Need test HBAR?{" "}
+            {t(
+              "You’re on Hedera testnet: everything uses test money, so nothing here costs real funds.",
+            )}{" "}
+            {t("Need test HBAR?")}{" "}
             <a
               href="https://portal.hedera.com/faucet"
               target="_blank"
               rel="noreferrer"
               className="font-semibold underline underline-offset-2"
             >
-              Claim from the Hedera faucet
+              {t("Claim from the Hedera faucet")}
             </a>
-            {wallet ? " — paste your wallet address there." : "."}
+            {wallet ? ` — ${t("paste your wallet address there.")}` : "."}
           </p>
         )}
       </section>

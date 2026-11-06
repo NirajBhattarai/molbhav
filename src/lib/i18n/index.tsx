@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useSyncExternalStore } from "react";
 import { LANG, isLang, langOf, type Lang } from "@/lib/languages";
 import type { Msg } from "@/lib/i18n/catalog";
-import { translate, type Vars } from "@/lib/i18n/translate";
+import { translate, translateText, type Text, type Vars } from "@/lib/i18n/translate";
 
 /*
  * The app in the language picked on Profile (or on sign-in), one of the ten in languages.ts. It's kept on
@@ -14,6 +14,20 @@ import { translate, type Vars } from "@/lib/i18n/translate";
 
 const KEY = "molbhav.lang";
 const listeners = new Set<() => void>();
+
+/** Another tab (or the app's web view) picked a language: follow it here too. */
+function onStorage(e: StorageEvent) {
+  if (e.key === KEY || e.key === null) listeners.forEach((l) => l());
+}
+
+function subscribe(cb: () => void) {
+  if (!listeners.size) window.addEventListener("storage", onStorage);
+  listeners.add(cb);
+  return () => {
+    listeners.delete(cb);
+    if (!listeners.size) window.removeEventListener("storage", onStorage);
+  };
+}
 
 function current(): Lang {
   try {
@@ -32,22 +46,22 @@ export function setLang(lang: Lang) {
 
 /** The app's language. Pages are prerendered in English and switch on the phone. */
 export function useLang(): Lang {
-  return useSyncExternalStore(
-    (cb) => {
-      listeners.add(cb);
-      return () => {
-        listeners.delete(cb);
-      };
-    },
-    current,
-    () => "en",
-  );
+  return useSyncExternalStore(subscribe, current, () => "en");
 }
 
 /** `t("Sign out")`: a phrase in the app's language. */
 export function useT() {
   const lang = useLang();
   return useCallback((msg: Msg, vars?: Vars) => translate(lang, msg, vars), [lang]);
+}
+
+/**
+ * `tx(error)`: stored text in the app's language. Keep errors and notices in state as English (or
+ * `{ msg, vars }`) and pass them through this when rendering, so they switch with the language.
+ */
+export function useTx() {
+  const lang = useLang();
+  return useCallback((text: Text) => translateText(lang, text), [lang]);
 }
 
 /** Times and language names in the app's language, from the browser's own Intl data. */
@@ -115,5 +129,5 @@ export function LangSync() {
   return null;
 }
 
-export { translate };
-export type { Msg, Vars };
+export { translate, translateText };
+export type { Msg, Text, Vars };

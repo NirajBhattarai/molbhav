@@ -18,7 +18,7 @@ import {
 } from "lucide-react";
 import { Field, MoneyInput, Sheet, fieldInput } from "@/components/ui/sheet";
 import { focusRing, outlineButton, primaryButton } from "@/components/ui/styles";
-import { useT } from "@/lib/i18n";
+import { useT, useTx, type Msg, type Text } from "@/lib/i18n";
 import { menuKey } from "@/lib/menu";
 import { shrinkPhoto } from "@/lib/photo";
 import type { ShopItem } from "@/lib/server/shop";
@@ -31,10 +31,10 @@ import {
 } from "@/lib/shop-actions";
 
 const inr = (n: number) => `₹${n.toLocaleString("en-IN")}`;
-const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 const SCAN_ERROR = "Couldn't read that photo. Try a clearer one, or add items by hand.";
 
-type Notice = { tone: "success" | "error"; text: string };
+// Kept in English and shown through tx(), so notices switch with the app language.
+type Notice = { tone: "success" | "error"; text: Text };
 
 /** The stall's menu: printed-menu list, add by hand, or scan/upload a photo and review it. */
 export function MenuSection({ items, canReadMenu }: { items: ShopItem[]; canReadMenu: boolean }) {
@@ -64,7 +64,7 @@ export function MenuSection({ items, canReadMenu }: { items: ShopItem[]; canRead
       if ("error" in res) setNotice({ tone: "error", text: res.error });
       else setReview(res.items);
     } catch {
-      setNotice({ tone: "error", text: t(SCAN_ERROR) });
+      setNotice({ tone: "error", text: SCAN_ERROR });
     } finally {
       setScanPreview(null);
       URL.revokeObjectURL(preview);
@@ -170,7 +170,10 @@ export function MenuSection({ items, canReadMenu }: { items: ShopItem[]; canRead
           onClose={() => setEditing(null)}
           onRemoved={(name) => {
             setEditing(null);
-            setNotice({ tone: "success", text: `Removed ${name} from your menu.` });
+            setNotice({
+              tone: "success",
+              text: { msg: "Removed {name} from your menu.", vars: { name } },
+            });
           }}
         />
       )}
@@ -181,12 +184,13 @@ export function MenuSection({ items, canReadMenu }: { items: ShopItem[]; canRead
           onClose={() => setReview(null)}
           onSaved={({ added, updated }) => {
             setReview(null);
-            const parts = [
-              added && `added ${plural(added, "new item")}`,
-              updated && `updated ${plural(updated, "item")}`,
-            ].filter(Boolean);
-            const text = parts.join(" and ");
-            setNotice({ tone: "success", text: `Menu saved: ${text}.` });
+            setNotice({
+              tone: "success",
+              text: {
+                msg: "Menu saved. New: {added}, updated: {updated}.",
+                vars: { added, updated },
+              },
+            });
           }}
         />
       )}
@@ -210,6 +214,7 @@ function MenuList({
   onEdit: (item: ShopItem) => void;
   onAdd: (name: string) => void;
 }) {
+  const t = useT();
   const [query, setQuery] = useState("");
   const [edges, setEdges] = useState({ top: true, bottom: true });
   const scroller = useRef<HTMLDivElement>(null);
@@ -250,7 +255,7 @@ function MenuList({
       {items.length >= SEARCH_FROM && (
         <div className="border-b border-border px-3 py-3">
           <label htmlFor="menu-search" className="sr-only">
-            Search your menu
+            {t("Search your menu")}
           </label>
           <div className="relative">
             <Search
@@ -263,7 +268,7 @@ function MenuList({
               type="search"
               value={query}
               onChange={(e) => onQuery(e.target.value)}
-              placeholder={`Search ${plural(items.length, "item")}`}
+              placeholder={t("Search {n} items", { n: items.length })}
               autoComplete="off"
               enterKeyHint="search"
               className={`${fieldInput} h-11 pr-11 pl-9 [&::-webkit-search-cancel-button]:appearance-none`}
@@ -271,7 +276,7 @@ function MenuList({
             {query && (
               <button
                 type="button"
-                aria-label="Clear search"
+                aria-label={t("Clear search")}
                 onClick={() => {
                   onQuery("");
                   search.current?.focus();
@@ -283,7 +288,7 @@ function MenuList({
             )}
           </div>
           <p aria-live="polite" className="sr-only">
-            {q ? `${plural(shown.length, "item")} found` : ""}
+            {q ? t("Found: {n}", { n: shown.length }) : ""}
           </p>
         </div>
       )}
@@ -303,7 +308,7 @@ function MenuList({
           ) : (
             <div className="px-4 py-8 text-center">
               <p className="text-sm text-muted-foreground">
-                Nothing on your menu matches “{query.trim()}”.
+                {t("Nothing on your menu matches “{q}”.", { q: query.trim() })}
               </p>
               <button
                 type="button"
@@ -311,7 +316,7 @@ function MenuList({
                 className={`${outlineButton} mt-3 max-w-full`}
               >
                 <Plus className="size-5 shrink-0" aria-hidden />
-                <span className="truncate">Add “{query.trim()}”</span>
+                <span className="truncate">{t("Add “{q}”", { q: query.trim() })}</span>
               </button>
             </div>
           )}
@@ -334,6 +339,7 @@ function MenuList({
 }
 
 function MenuRow({ item, onEdit }: { item: ShopItem; onEdit: () => void }) {
+  const t = useT();
   const room = item.price - item.lowest;
   return (
     <li className="border-b border-border last:border-0">
@@ -356,20 +362,20 @@ function MenuRow({ item, onEdit }: { item: ShopItem; onEdit: () => void }) {
           <span className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
             <span className="inline-flex items-center gap-1 tabular-nums">
               <Lock className="size-3.5" aria-hidden />
-              Lowest {inr(item.lowest)}
+              {t("Lowest {price}", { price: inr(item.lowest) })}
             </span>
             <span className="tabular-nums">
-              {room > 0 ? `${inr(room)} to bargain` : "Fixed price"}
+              {room > 0 ? t("{price} to bargain", { price: inr(room) }) : t("Fixed price")}
             </span>
             {item.aliases.length > 0 && (
               <span className="max-w-full truncate">
-                Also “{item.aliases.slice(0, 3).join(", ")}”
+                {t("Also: {names}", { names: item.aliases.slice(0, 3).join(", ") })}
               </span>
             )}
           </span>
         </span>
         <ChevronRight className="size-4 shrink-0 text-muted-foreground" aria-hidden />
-        <span className="sr-only">Edit</span>
+        <span className="sr-only">{t("Edit")}</span>
       </button>
     </li>
   );
@@ -459,6 +465,7 @@ function ScanProgress({ preview }: { preview: string }) {
 
 function NoticeBar({ notice, onDismiss }: { notice: Notice; onDismiss: () => void }) {
   const t = useT();
+  const tx = useTx();
   const ok = notice.tone === "success";
   const Icon = ok ? Check : CircleAlert;
   return (
@@ -469,7 +476,7 @@ function NoticeBar({ notice, onDismiss }: { notice: Notice; onDismiss: () => voi
       }`}
     >
       <Icon className="mt-1 size-4 shrink-0" aria-hidden />
-      <p className="flex-1 py-0.5 font-medium text-pretty">{notice.text}</p>
+      <p className="flex-1 py-0.5 font-medium text-pretty">{tx(notice.text)}</p>
       <button
         type="button"
         onClick={onDismiss}
@@ -492,13 +499,14 @@ function FormError({ children }: { children: ReactNode }) {
 }
 
 function BargainRange({ ask, floor }: { ask: number; floor: number }) {
+  const t = useT();
   const room = ask - floor;
   const pct = Math.round((room / ask) * 100);
   return (
     <div className="rounded-xl bg-muted/60 p-3">
       <div className="flex items-center justify-between text-xs font-medium text-muted-foreground tabular-nums">
-        <span>Lowest {inr(floor)}</span>
-        <span>Ask {inr(ask)}</span>
+        <span>{t("Lowest {price}", { price: inr(floor) })}</span>
+        <span>{t("Ask {price}", { price: inr(ask) })}</span>
       </div>
       <div className="mt-2 flex h-2 overflow-hidden rounded-full bg-border" aria-hidden>
         <div
@@ -507,14 +515,9 @@ function BargainRange({ ask, floor }: { ask: number; floor: number }) {
         />
       </div>
       <p className="mt-2 text-sm text-pretty">
-        {room === 0 ? (
-          "Fixed price: your agent won’t give a discount."
-        ) : (
-          <>
-            Your agent can come down by up to{" "}
-            <span className="font-semibold tabular-nums">{inr(room)}</span> ({pct}%).
-          </>
-        )}
+        {room === 0
+          ? t("Fixed price: your agent won’t give a discount.")
+          : t("Your agent can come down by up to {price} ({pct}%).", { price: inr(room), pct })}
       </p>
     </div>
   );
@@ -538,10 +541,12 @@ function ItemForm({
   onClose: () => void;
   onRemoved: (name: string) => void;
 }) {
+  const t = useT();
+  const tx = useTx();
   const [name, setName] = useState(item?.name ?? initialName ?? "");
   const [price, setPrice] = useState(item ? String(item.price) : "");
   const [lowest, setLowest] = useState(item ? String(item.lowest) : "");
-  const [error, setError] = useState("");
+  const [error, setError] = useState<Text>("");
   const [busy, setBusy] = useState(false);
   const [confirming, setConfirming] = useState(false);
 
@@ -590,8 +595,8 @@ function ItemForm({
 
   return (
     <Sheet
-      title={item ? "Edit item" : "Add item"}
-      description="Buyers see your asking price. Only your agent knows the lowest."
+      title={item ? t("Edit item") : t("Add item")}
+      description={t("Buyers see your asking price. Only your agent knows the lowest.")}
       onClose={onClose}
       footer={
         <button
@@ -601,12 +606,12 @@ function ItemForm({
           className={`${primaryButton} w-full`}
         >
           {busy && !confirming && <LoaderCircle className="size-5 animate-spin" aria-hidden />}
-          {busy && !confirming ? "Saving…" : item ? "Save changes" : "Add to menu"}
+          {busy && !confirming ? t("Saving…") : item ? t("Save changes") : t("Add to menu")}
         </button>
       }
     >
       <form id="item-form" onSubmit={onSubmit} noValidate className="grid gap-4">
-        <Field label="Item name" htmlFor="item-name">
+        <Field label={t("Item name")} htmlFor="item-name">
           <input
             id="item-name"
             data-autofocus={item ? undefined : true}
@@ -626,8 +631,10 @@ function ItemForm({
             >
               <CircleAlert className="size-4 shrink-0" aria-hidden />
               <p className="min-w-0 flex-1 text-sm">
-                <span className="font-semibold">{twin.name}</span> is already on your menu at{" "}
-                <span className="tabular-nums">{inr(twin.price)}</span>.
+                {t("{name} is already on your menu at {price}.", {
+                  name: twin.name,
+                  price: inr(twin.price),
+                })}
               </p>
               <button
                 id="item-name-twin"
@@ -635,14 +642,14 @@ function ItemForm({
                 onClick={() => onOpen(twin)}
                 className={`inline-flex h-11 shrink-0 items-center gap-1 rounded-lg bg-card px-3 text-sm font-semibold shadow-sm transition-colors hover:bg-muted ${focusRing}`}
               >
-                Edit it
+                {t("Edit it")}
                 <ChevronRight className="size-4" aria-hidden />
               </button>
             </div>
           )}
         </Field>
         <div className="grid grid-cols-2 gap-3">
-          <Field label="You ask" htmlFor="item-price" hint="Buyers see this first">
+          <Field label={t("You ask")} htmlFor="item-price" hint={t("Buyers see this first")}>
             <MoneyInput
               id="item-price"
               value={price}
@@ -651,7 +658,7 @@ function ItemForm({
               describedBy="item-price-hint"
             />
           </Field>
-          <Field label="Lowest you’ll take" htmlFor="item-lowest" hint="Kept private">
+          <Field label={t("Lowest you’ll take")} htmlFor="item-lowest" hint={t("Kept private")}>
             <MoneyInput
               id="item-lowest"
               value={lowest}
@@ -665,20 +672,18 @@ function ItemForm({
 
         {!lowest && ask > 0 && (
           <p className="text-sm text-muted-foreground">
-            No lowest set, so we’ll use{" "}
-            <span className="font-medium text-foreground tabular-nums">{inr(autoFloor)}</span> (80%
-            of your ask).
+            {t("No lowest set, so we’ll use {price} (80% of your ask).", { price: inr(autoFloor) })}
           </p>
         )}
         {ask > 0 && !floorTooHigh && <BargainRange ask={ask} floor={floor} />}
-        {error && <FormError>{error}</FormError>}
+        {error && <FormError>{tx(error)}</FormError>}
 
         {item &&
           (confirming ? (
             <div className="rounded-xl border border-destructive/30 bg-destructive/5 p-3">
-              <p className="font-medium">Remove {item.name}?</p>
+              <p className="font-medium">{t("Remove {name}?", { name: item.name })}</p>
               <p className="mt-0.5 text-sm text-muted-foreground">
-                Your agent stops selling it. If it’s your last item, your stall closes.
+                {t("Your agent stops selling it. If it’s your last item, your stall closes.")}
               </p>
               <div className="mt-3 grid grid-cols-2 gap-2">
                 <button
@@ -687,7 +692,7 @@ function ItemForm({
                   disabled={busy}
                   className={outlineButton}
                 >
-                  Keep it
+                  {t("Keep it")}
                 </button>
                 <button
                   type="button"
@@ -696,7 +701,7 @@ function ItemForm({
                   className="inline-flex h-12 items-center justify-center gap-2 rounded-lg bg-destructive px-5 font-semibold text-destructive-foreground transition-[transform,opacity] duration-150 ease-out active:scale-[0.97] disabled:opacity-60"
                 >
                   {busy && <LoaderCircle className="size-5 animate-spin" aria-hidden />}
-                  Remove
+                  {t("Remove")}
                 </button>
               </div>
             </div>
@@ -707,7 +712,7 @@ function ItemForm({
               className={`mt-1 inline-flex h-11 items-center justify-center gap-2 rounded-lg text-sm font-semibold text-destructive transition-colors hover:bg-destructive/10 ${focusRing}`}
             >
               <Trash2 className="size-4" aria-hidden />
-              Remove from menu
+              {t("Remove from menu")}
             </button>
           ))}
       </form>
@@ -727,7 +732,7 @@ type ReviewRow = {
 /** What saving a reviewed row does to the stall's menu. */
 type RowStatus = { kind: "new" } | { kind: "update" | "same"; current: ShopItem };
 
-type Problem = { field: "name" | "price" | "lowest"; text: string };
+type Problem = { field: "name" | "price" | "lowest"; text: Msg };
 
 function problemOf(row: ReviewRow, repeated: boolean): Problem | null {
   const ask = Number(row.price);
@@ -779,7 +784,7 @@ function Choice({
   );
 }
 
-const STATUS = {
+const STATUS: Record<RowStatus["kind"], { icon: typeof Plus; label: Msg; badge: string }> = {
   new: { icon: Plus, label: "New", badge: "bg-success/10 text-success" },
   update: {
     icon: RefreshCw,
@@ -787,23 +792,25 @@ const STATUS = {
     badge: "bg-secondary/25 text-foreground",
   },
   same: { icon: Check, label: "Already on menu", badge: "bg-muted text-muted-foreground" },
-} as const;
+};
 
 function StatusBadge({ kind }: { kind: RowStatus["kind"] }) {
+  const t = useT();
   const { icon: Icon, label, badge } = STATUS[kind];
   return (
     <span
       className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold ${badge}`}
     >
       <Icon className="size-3.5" aria-hidden />
-      {label}
+      {t(label)}
     </span>
   );
 }
 
 function SummaryStat({ kind, count }: { kind: RowStatus["kind"]; count: number }) {
+  const t = useT();
   const { icon: Icon, badge } = STATUS[kind];
-  const label = { new: "New", update: "Will update", same: "No change" }[kind];
+  const label = ({ new: "New", update: "Will update", same: "No change" } as const)[kind];
   return (
     <div
       className={`grid gap-0.5 rounded-xl px-3 py-2 ${count ? badge : "bg-muted/50 text-muted-foreground"}`}
@@ -812,7 +819,7 @@ function SummaryStat({ kind, count }: { kind: RowStatus["kind"]; count: number }
         <Icon className="size-4" aria-hidden />
         {count}
       </span>
-      <span className="text-xs font-medium">{label}</span>
+      <span className="text-xs font-medium">{t(label)}</span>
     </div>
   );
 }
@@ -842,6 +849,8 @@ function MenuReview({
   onClose: () => void;
   onSaved: (result: { added: number; updated: number }) => void;
 }) {
+  const t = useT();
+  const tx = useTx();
   const [{ merged, initial }] = useState(() => {
     const { kept, merged } = dedupeScan(items);
     // A dish already on the menu keeps the shopkeeper's spelling; the photo only brings prices.
@@ -862,7 +871,7 @@ function MenuReview({
   const [rows, setRows] = useState<ReviewRow[]>(initial);
   const [removed, setRemoved] = useState<{ row: ReviewRow; index: number } | null>(null);
   const [checked, setChecked] = useState(false);
-  const [error, setError] = useState("");
+  const [error, setError] = useState<Text>("");
   const [busy, setBusy] = useState(false);
 
   function applyBump(pct: number) {
@@ -922,12 +931,12 @@ function MenuReview({
 
   const cta =
     toSave.length === 0
-      ? "Nothing to change"
+      ? t("Nothing to change")
       : added && updated
-        ? `Add ${added} · Update ${updated}`
+        ? t("Add {added} · Update {updated}", { added, updated })
         : added
-          ? `Add ${plural(added, "item")} to menu`
-          : `Update ${plural(updated, "item")}`;
+          ? t("Add to menu ({n})", { n: added })
+          : t("Update ({n})", { n: updated });
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
@@ -936,7 +945,7 @@ function MenuReview({
     const first = toSave.find((v) => v.problem);
     if (first) {
       setChecked(true);
-      setError(`Fix ${plural(badCount, "item")} marked below.`);
+      setError({ msg: "Fix the items marked below ({n}).", vars: { n: badCount } });
       document.getElementById(`${first.problem!.field}-${first.row.key}`)?.focus();
       return;
     }
@@ -965,17 +974,30 @@ function MenuReview({
   const known = updated + unchanged;
   return (
     <Sheet
-      title="Check your menu"
+      title={t("Check your menu")}
       description={
-        known
-          ? `We found ${plural(rows.length, "item")}. ${known === rows.length ? "All of them are" : `${known} of them are`} already on your menu, so we’ll update those instead of adding them twice.`
-          : `We found ${plural(rows.length, "item")}. Fix anything we misread, then choose how your agent prices them.`
+        !known
+          ? t(
+              "Items found: {n}. Fix anything we misread, then choose how your agent prices them.",
+              {
+                n: rows.length,
+              },
+            )
+          : known === rows.length
+            ? t(
+                "Items found: {n}. All of them are already on your menu, so we’ll update them instead of adding them twice.",
+                { n: rows.length },
+              )
+            : t(
+                "Items found: {n}. {k} are already on your menu, so we’ll update those instead of adding them twice.",
+                { n: rows.length, k: known },
+              )
       }
       onClose={onClose}
       dismissible={false}
       footer={
         <div className="grid gap-3">
-          {error && <FormError>{error}</FormError>}
+          {error && <FormError>{tx(error)}</FormError>}
           <button
             type="submit"
             form="menu-review"
@@ -983,14 +1005,14 @@ function MenuReview({
             className={`${primaryButton} w-full`}
           >
             {busy && <LoaderCircle className="size-5 animate-spin" aria-hidden />}
-            {busy ? "Saving…" : cta}
+            {busy ? t("Saving…") : cta}
           </button>
         </div>
       }
     >
       <form id="menu-review" onSubmit={onSubmit} noValidate className="grid gap-5">
         {menu.length > 0 && (
-          <section aria-label="What will change" className="grid gap-2">
+          <section aria-label={t("What will change")} className="grid gap-2">
             <div className="grid grid-cols-3 gap-2" aria-live="polite">
               <SummaryStat kind="new" count={added} />
               <SummaryStat kind="update" count={updated} />
@@ -998,37 +1020,39 @@ function MenuReview({
             </div>
             {merged > 0 && (
               <p className="text-xs text-muted-foreground">
-                {plural(merged, "item")} appeared twice in the photo, so we kept one of each.
+                {t("Some items appeared twice in the photo, so we kept one of each.")}
               </p>
             )}
           </section>
         )}
 
         <fieldset className="grid gap-2">
-          <legend className="mb-2 text-sm font-semibold">How should your agent price these?</legend>
+          <legend className="mb-2 text-sm font-semibold">
+            {t("How should your agent price these?")}
+          </legend>
           <Choice
             name="strategy"
             checked={bump === 0}
             onSelect={() => applyBump(0)}
-            title="Sell at menu price"
+            title={t("Sell at menu price")}
           >
-            No bargaining. Buyers pay what’s on your menu.
+            {t("No bargaining. Buyers pay what’s on your menu.")}
           </Choice>
           <Choice
             name="strategy"
             checked={bump > 0}
             onSelect={() => applyBump(bump || 10)}
-            title="Leave room to bargain"
+            title={t("Leave room to bargain")}
           >
-            Ask a little more than your menu. Your agent never goes below the menu price.
+            {t("Ask a little more than your menu. Your agent never goes below the menu price.")}
           </Choice>
         </fieldset>
 
         {bump > 0 && (
           <fieldset className="-mt-2 grid gap-2 rounded-xl bg-muted/60 p-3">
-            <legend className="sr-only">Ask above menu price</legend>
+            <legend className="sr-only">{t("Ask above menu price")}</legend>
             <p className="text-sm font-medium" aria-hidden>
-              Ask above menu price
+              {t("Ask above menu price")}
             </p>
             <div className="flex flex-wrap gap-2">
               {BUMPS.map((p) => (
@@ -1053,11 +1077,14 @@ function MenuReview({
             </div>
             {example && (
               <p className="text-sm text-pretty text-muted-foreground">
-                {example.name} is {inr(example.scanned)} in your photo. Buyers are asked{" "}
-                <span className="font-semibold text-foreground tabular-nums">
-                  {inr(Math.round(example.scanned * (1 + bump / 100)))}
-                </span>
-                , and your agent can come down to {inr(example.scanned)}.
+                {t(
+                  "{item} is {price} in your photo. Buyers are asked {ask}, and your agent can come down to {price}.",
+                  {
+                    item: example.name,
+                    price: inr(example.scanned),
+                    ask: inr(Math.round(example.scanned * (1 + bump / 100))),
+                  },
+                )}
               </p>
             )}
           </fieldset>
@@ -1066,9 +1093,10 @@ function MenuReview({
         <div className="grid gap-2">
           <div className="flex items-baseline justify-between gap-3">
             <h3 className="text-sm font-semibold">
-              Items <span className="font-normal text-muted-foreground">({rows.length})</span>
+              {t("Items")}{" "}
+              <span className="font-normal text-muted-foreground">({rows.length})</span>
             </h3>
-            <p className="text-xs text-muted-foreground">Tap any field to change it</p>
+            <p className="text-xs text-muted-foreground">{t("Tap any field to change it")}</p>
           </div>
 
           {removed && (
@@ -1076,21 +1104,25 @@ function MenuReview({
               role="status"
               className="flex items-center gap-2 rounded-xl bg-foreground py-1 pr-1 pl-3 text-sm text-background"
             >
-              <span className="min-w-0 flex-1 truncate">Removed {removed.row.name || "item"}</span>
+              <span className="min-w-0 flex-1 truncate">
+                {removed.row.name
+                  ? t("Removed {name}", { name: removed.row.name })
+                  : t("Removed an item")}
+              </span>
               <button
                 type="button"
                 onClick={undo}
                 className={`inline-flex h-11 shrink-0 items-center gap-1.5 rounded-lg px-3 font-semibold hover:bg-background/15 ${focusRing}`}
               >
                 <Undo2 className="size-4" aria-hidden />
-                Undo
+                {t("Undo")}
               </button>
             </div>
           )}
 
           {rows.length === 0 ? (
             <p className="rounded-xl border border-dashed border-border p-4 text-center text-sm text-muted-foreground">
-              No items left. Undo, or close and scan again.
+              {t("No items left. Undo, or close and scan again.")}
             </p>
           ) : (
             <ul className="grid gap-2">
@@ -1107,11 +1139,20 @@ function MenuReview({
                   status.kind === "update"
                     ? [
                         row.name.trim() !== status.current.name &&
-                          `Name “${status.current.name}” → “${row.name.trim()}”`,
+                          t("Name “{from}” → “{to}”", {
+                            from: status.current.name,
+                            to: row.name.trim(),
+                          }),
                         ask !== status.current.price &&
-                          `Ask ${inr(status.current.price)} → ${ask ? inr(ask) : "—"}`,
+                          t("Ask {from} → {to}", {
+                            from: inr(status.current.price),
+                            to: ask ? inr(ask) : "—",
+                          }),
                         floor !== status.current.lowest &&
-                          `Lowest ${inr(status.current.lowest)} → ${floor ? inr(floor) : "—"}`,
+                          t("Lowest {from} → {to}", {
+                            from: inr(status.current.lowest),
+                            to: floor ? inr(floor) : "—",
+                          }),
                       ].filter((c): c is string => Boolean(c))
                     : [];
                 return (
@@ -1133,11 +1174,11 @@ function MenuReview({
                         >
                           <StatusBadge kind={status.kind} />
                           <span className="text-xs text-muted-foreground tabular-nums">
-                            In photo {inr(row.scanned)}
+                            {t("In photo {price}", { price: inr(row.scanned) })}
                           </span>
                         </div>
                         <label htmlFor={`name-${row.key}`} className="sr-only">
-                          Item name
+                          {t("Item name")}
                         </label>
                         <input
                           id={`name-${row.key}`}
@@ -1153,7 +1194,9 @@ function MenuReview({
                       <button
                         type="button"
                         onClick={() => drop(i)}
-                        aria-label={`Remove ${row.name || "this item"}`}
+                        aria-label={
+                          row.name ? t("Remove {name}", { name: row.name }) : t("Remove this item")
+                        }
                         className={`-mr-1 flex size-11 shrink-0 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive ${focusRing}`}
                       >
                         <X className="size-5" aria-hidden />
@@ -1162,7 +1205,9 @@ function MenuReview({
 
                     {changes.length > 0 && (
                       <ul
-                        aria-label={`Changes to ${status.kind !== "new" ? status.current.name : row.name}`}
+                        aria-label={t("Changes to {name}", {
+                          name: status.kind !== "new" ? status.current.name : row.name,
+                        })}
                         className="mt-1 flex flex-wrap gap-1.5"
                       >
                         {changes.map((c) => (
@@ -1177,13 +1222,14 @@ function MenuReview({
                     )}
                     {status.kind === "same" && (
                       <p className="mt-1 text-xs text-muted-foreground">
-                        Same name and prices as your menu, so nothing changes. Edit a price to
-                        update it.
+                        {t(
+                          "Same name and prices as your menu, so nothing changes. Edit a price to update it.",
+                        )}
                       </p>
                     )}
 
                     <div className="mt-3 grid grid-cols-2 gap-3">
-                      <Field label="Ask" htmlFor={`price-${row.key}`}>
+                      <Field label={t("Ask")} htmlFor={`price-${row.key}`}>
                         <MoneyInput
                           id={`price-${row.key}`}
                           value={row.price}
@@ -1192,7 +1238,7 @@ function MenuReview({
                           describedBy={describe}
                         />
                       </Field>
-                      <Field label="Lowest" htmlFor={`lowest-${row.key}`}>
+                      <Field label={t("Lowest")} htmlFor={`lowest-${row.key}`}>
                         <MoneyInput
                           id={`lowest-${row.key}`}
                           value={row.lowest}
@@ -1208,7 +1254,7 @@ function MenuReview({
                         className="mt-2 flex items-center gap-1.5 text-sm text-destructive"
                       >
                         <CircleAlert className="size-4 shrink-0" aria-hidden />
-                        {problem.text}
+                        {t(problem.text)}
                       </p>
                     )}
                   </li>

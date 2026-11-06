@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { Check, Copy } from "lucide-react";
+import { useT } from "@/lib/i18n";
 
 /** Copies `value` and shows a check for a moment. */
 export function CopyButton({
@@ -13,6 +14,7 @@ export function CopyButton({
   label: string;
   className?: string;
 }) {
+  const t = useT();
   const [copied, setCopied] = useState(false);
   const timer = useRef<number | undefined>(undefined);
   useEffect(() => () => window.clearTimeout(timer.current), []);
@@ -30,7 +32,7 @@ export function CopyButton({
           /* clipboard blocked: the value is selectable text */
         }
       }}
-      aria-label={copied ? "Copied" : label}
+      aria-label={copied ? t("Copied") : label}
       className={`flex size-11 shrink-0 items-center justify-center rounded-lg transition-[background-color,transform] duration-150 ease-out active:scale-[0.97] ${className}`}
     >
       <span key={copied ? "copied" : "copy"} className="flex animate-[rise_160ms_var(--ease-out)]">

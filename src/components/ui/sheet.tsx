@@ -3,6 +3,7 @@
 import { useEffect, useId, useRef, type ReactNode } from "react";
 import { X } from "lucide-react";
 import { focusRing } from "@/components/ui/styles";
+import { useT } from "@/lib/i18n";
 
 const FOCUSABLE =
   'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
@@ -28,6 +29,7 @@ export function Sheet({
   dismissible?: boolean;
   children: ReactNode;
 }) {
+  const t = useT();
   const titleId = useId();
   const descId = useId();
   const panel = useRef<HTMLDivElement>(null);
@@ -110,7 +112,7 @@ export function Sheet({
           <button
             type="button"
             onClick={onClose}
-            aria-label="Close"
+            aria-label={t("Close")}
             className={`-mt-1.5 -mr-2.5 flex size-11 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors duration-150 hover:bg-muted hover:text-foreground ${focusRing}`}
           >
             <X className="size-5" aria-hidden />

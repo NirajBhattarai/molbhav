@@ -15,7 +15,7 @@ import { Sheet } from "@/components/ui/sheet";
 import { action, focusRing } from "@/components/ui/styles";
 import { useNearbyStalls } from "@/lib/ble/scan";
 import { useDiscoveryMode } from "@/lib/discovery";
-import { useLang, useT } from "@/lib/i18n";
+import { useLang, useT, useTx, type Text } from "@/lib/i18n";
 import { LANG } from "@/lib/languages";
 import { rupees, type HeardWant } from "@/lib/want";
 import { readWant } from "@/lib/want-actions";
@@ -77,6 +77,7 @@ export function WantForm() {
 
 function WantSheet({ onClose }: { onClose: () => void }) {
   const t = useT();
+  const tx = useTx();
   const lang = useLang();
   const discovery = useDiscoveryMode();
   const nearby = useNearbyStalls(discovery === "nearby");
@@ -86,8 +87,9 @@ function WantSheet({ onClose }: { onClose: () => void }) {
   const [reading, setReading] = useState(false);
   const [searching, setSearching] = useState(false);
   const [searched, setSearched] = useState(false);
-  const [micError, setMicError] = useState("");
-  const [error, setError] = useState("");
+  // Kept in English and shown through tx(), so they switch with the app language.
+  const [micError, setMicError] = useState<Text>("");
+  const [error, setError] = useState<Text>("");
   const [heard, setHeard] = useState<HeardWant | null>(null);
   const [countdown, setCountdown] = useState<number | null>(null);
   const recognition = useRef<Recognition | null>(null);
@@ -152,7 +154,7 @@ function WantSheet({ onClose }: { onClose: () => void }) {
       setCountdown(COUNTDOWN);
     } catch {
       if (openRef.current && turn === turnRef.current) {
-        setError(t("Couldn’t read that order. Try typing it."));
+        setError("Couldn’t read that order. Try typing it.");
       }
     } finally {
       if (openRef.current && turn === turnRef.current) setReading(false);
@@ -204,10 +206,10 @@ function WantSheet({ onClose }: { onClose: () => void }) {
     rec.onerror = (e) =>
       setMicError(
         e.error === "not-allowed" || e.error === "service-not-allowed"
-          ? t("Microphone access is off. Allow it in Settings, or type your order.")
+          ? "Microphone access is off. Allow it in Settings, or type your order."
           : e.error === "no-speech"
-            ? t("Didn’t catch that. Tap the mic and try again.")
-            : t("Couldn’t listen just now. Type your order instead."),
+            ? "Didn’t catch that. Tap the mic and try again."
+            : "Couldn’t listen just now. Type your order instead.",
       );
     // Buyer stopped talking (or tapped stop): parse and start the search countdown.
     rec.onend = () => {
@@ -347,7 +349,7 @@ function WantSheet({ onClose }: { onClose: () => void }) {
                 ? t("Listening… just stop talking when you’re done")
                 : reading
                   ? t("Reading your order…")
-                  : micError || t("Tap to speak. Bargaining starts when you stop.")}
+                  : tx(micError) || t("Tap to speak. Bargaining starts when you stop.")}
             </p>
           </div>
         )}
@@ -450,7 +452,7 @@ function WantSheet({ onClose }: { onClose: () => void }) {
 
         {error && (
           <p role="alert" className="text-sm font-medium text-destructive">
-            {error}
+            {tx(error)}
           </p>
         )}
       </form>
