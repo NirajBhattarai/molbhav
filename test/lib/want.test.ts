@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { labelWant, parseWantLocal, priceIn, words } from "@/lib/want";
+import { labelWant, parseHeard, parseWantLocal, priceIn, words } from "@/lib/want";
 
 describe("parseWantLocal", () => {
   it("splits '2 samosa and 2 chai' into two qty lines", () => {
@@ -80,5 +80,28 @@ describe("priceIn", () => {
 describe("words", () => {
   it("drops stop words and stems", () => {
     expect([...words("I need two samosas please")]).toEqual(["samosa"]);
+  });
+});
+
+describe("parseHeard", () => {
+  const ok = {
+    items: ["2× Chai"],
+    budget: 50,
+    english: "2 chai",
+    stalls: [{ id: "u-1", name: "Ramesh", item: "Chai" }],
+  };
+
+  it("reads back what the sheet understood", () => {
+    expect(parseHeard(JSON.stringify(ok))).toEqual(ok);
+    expect(parseHeard(JSON.stringify({ ...ok, budget: null, stalls: [] }))?.budget).toBeNull();
+  });
+
+  it("rejects anything off, so the server reads the order itself", () => {
+    expect(parseHeard(null)).toBeNull();
+    expect(parseHeard("not json")).toBeNull();
+    expect(parseHeard(JSON.stringify({ ...ok, budget: -5 }))).toBeNull();
+    expect(parseHeard(JSON.stringify({ ...ok, budget: 1.5 }))).toBeNull();
+    expect(parseHeard(JSON.stringify({ ...ok, stalls: [{ id: "u-1" }] }))).toBeNull();
+    expect(parseHeard(JSON.stringify({ ...ok, items: "chai" }))).toBeNull();
   });
 });

@@ -16,7 +16,8 @@
     "ios:sync": "cap sync ios",
     "ios:dev": "CAP_SERVER_URL=http://$(ipconfig getifaddr en0):3000 cap sync ios",
     "ios:open": "cap open ios",
-    "ios:assets": "python3 scripts/logo/generate.py /tmp/molbhav-logo && node scripts/logo/raster.mjs /tmp/molbhav-logo && mkdir -p ios/App/App/Assets.xcassets/AppIcon.appiconset ios/App/App/Assets.xcassets/Splash.imageset && cp /tmp/molbhav-logo/ios/AppIcon-512@2x.png ios/App/App/Assets.xcassets/AppIcon.appiconset/ && cp /tmp/molbhav-logo/ios/splash-2732x2732.png /tmp/molbhav-logo/ios/splash-2732x2732-1.png /tmp/molbhav-logo/ios/splash-2732x2732-2.png ios/App/App/Assets.xcassets/Splash.imageset/ && cp /tmp/molbhav-logo/web/apple-icon.png src/app/apple-icon.png && cp /tmp/molbhav-logo/web/icon.svg src/app/icon.svg && cp /tmp/molbhav-logo/brand/*.svg public/brand/"
+    "ios:assets": "python3 scripts/logo/generate.py /tmp/molbhav-logo && node scripts/logo/raster.mjs /tmp/molbhav-logo && mkdir -p ios/App/App/Assets.xcassets/AppIcon.appiconset ios/App/App/Assets.xcassets/Splash.imageset && cp /tmp/molbhav-logo/ios/AppIcon-512@2x.png ios/App/App/Assets.xcassets/AppIcon.appiconset/ && cp /tmp/molbhav-logo/ios/splash-2732x2732.png /tmp/molbhav-logo/ios/splash-2732x2732-1.png /tmp/molbhav-logo/ios/splash-2732x2732-2.png ios/App/App/Assets.xcassets/Splash.imageset/ && cp /tmp/molbhav-logo/web/apple-icon.png src/app/apple-icon.png && cp /tmp/molbhav-logo/web/icon.svg src/app/icon.svg && cp /tmp/molbhav-logo/brand/*.svg public/brand/",
+    "db:seed-bargains": "node scripts/seed-bargains.mjs"
   },
   "dependencies": {
     "@capacitor-community/bluetooth-le": "^8.3.0",

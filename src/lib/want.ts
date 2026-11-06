@@ -178,3 +178,50 @@ export type HeardWant = {
   /** Open stalls that sell at least one asked item. */
   stalls: { id: string; name: string; item: string }[];
 };
+
+const str = (v: unknown, max: number): v is string =>
+  typeof v === "string" && v.length > 0 && v.length <= max;
+
+/**
+ * What the order sheet already understood, sent back with "Start bargaining" so the server
+ * doesn't ask Gemini a second time. Untrusted: only the shape is checked here, and stalls and
+ * prices are read again from the database. Anything off returns null, and the server re-reads
+ * the order itself.
+ */
+export function parseHeard(raw: unknown): HeardWant | null {
+  if (typeof raw !== "string" || raw.length > 8000) return null;
+  let v: unknown;
+  try {
+    v = JSON.parse(raw);
+  } catch {
+    return null;
+  }
+  if (!v || typeof v !== "object") return null;
+  const h = v as Record<string, unknown>;
+  const budget = h.budget;
+  if (
+    !Array.isArray(h.items) ||
+    h.items.length > 20 ||
+    !h.items.every((i) => str(i, 80)) ||
+    !(
+      budget === null ||
+      (Number.isInteger(budget) && (budget as number) > 0 && (budget as number) <= 1_000_000)
+    ) ||
+    !(h.english === "" || str(h.english, 400)) ||
+    !Array.isArray(h.stalls) ||
+    h.stalls.length > 20
+  )
+    return null;
+  const stalls: HeardWant["stalls"] = [];
+  for (const s of h.stalls as unknown[]) {
+    const r = (s ?? {}) as Record<string, unknown>;
+    if (!str(r.id, 64) || !str(r.name, 80) || !str(r.item, 80)) return null;
+    stalls.push({ id: r.id, name: r.name, item: r.item });
+  }
+  return {
+    items: h.items as string[],
+    budget: budget as number | null,
+    english: h.english as string,
+    stalls,
+  };
+}

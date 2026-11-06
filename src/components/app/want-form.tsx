@@ -18,6 +18,7 @@ import { useDiscoveryMode } from "@/lib/discovery";
 import { useLang, useT, useTx, type Text } from "@/lib/i18n";
 import { LANG } from "@/lib/languages";
 import { rupees, type HeardWant } from "@/lib/want";
+import { createBargain } from "@/lib/bargain-actions";
 import { readWant } from "@/lib/want-actions";
 
 const QUICK_PICKS = ["2 chai, 2 samosa", "Tomatoes & onions", "Pani puri for 4"] as const;
@@ -254,7 +255,17 @@ function WantSheet({ onClose }: { onClose: () => void }) {
     e.preventDefault();
     const q = order.trim();
     if (!q || listening || reading || searching) return;
-    if (heard && searched) return;
+    if (heard && searched) {
+      if (!heard.stalls.length) return;
+      const fd = form.current ? new FormData(form.current) : new FormData();
+      fd.set("q", q);
+      fd.set("lang", lang);
+      fd.set("heard", JSON.stringify(heard));
+      setSearching(true);
+      // On success the action redirects to the bargain. Only a failure comes back here.
+      await createBargain(fd).catch(() => setSearching(false));
+      return;
+    }
     if (heard && heard.english === q) {
       startSearch();
       return;

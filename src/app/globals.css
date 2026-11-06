@@ -311,6 +311,25 @@
   }
 }
 
+/* Typing dots: take turns brightening. */
+@keyframes typing {
+  0%,
+  60%,
+  100% {
+    opacity: 0.3;
+  }
+  30% {
+    opacity: 1;
+  }
+}
+
+/* Price bar settling from a longer start (--from as scale). */
+@keyframes settle {
+  from {
+    transform: scaleX(var(--from, 1));
+  }
+}
+
 /* Code boxes: the caret in the empty box blinks like a text field's. */
 @keyframes caret-blink {
   0%,
@@ -437,6 +456,11 @@
     }
     to {
       opacity: 0;
+    }
+  }
+  @keyframes settle {
+    from {
+      transform: none;
     }
   }
 }
