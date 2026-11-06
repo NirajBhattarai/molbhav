@@ -2,12 +2,13 @@ import { Suspense } from "react";
 import { ProfileAccount } from "@/components/app/profile-account";
 import { ProfileSettings } from "@/components/app/profile-settings";
 import { Screen } from "@/components/app/screen";
+import { T } from "@/lib/i18n";
 import { getDiscovery } from "@/lib/server/discovery";
 import { ensureUser, me } from "@/lib/server/shop";
 
 export default function ProfilePage() {
   return (
-    <Screen title="Profile" back>
+    <Screen title={<T msg="Profile" />} back>
       <Suspense fallback={<AccountSkeleton />}>
         <Account />
       </Suspense>

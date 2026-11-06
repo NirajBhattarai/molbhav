@@ -27,3 +27,21 @@ describe("translate", () => {
     }
   });
 });
+
+describe("translateText", () => {
+  it("translates a known phrase, or a phrase with values", async () => {
+    const { translateText } = await import("@/lib/i18n/translate");
+    expect(translateText("hi", "Open")).toBe(CATALOG.Open.hi);
+    expect(translateText("fr", { msg: "Back in {n} min", vars: { n: 3 } })).toBe(
+      CATALOG["Back in {n} min"].fr.replace("{n}", "3"),
+    );
+  });
+
+  it("shows words it doesn't know as they are", async () => {
+    const { translateText } = await import("@/lib/i18n/translate");
+    expect(translateText("hi", "Masala Chai is already on your menu.")).toBe(
+      "Masala Chai is already on your menu.",
+    );
+    expect(translateText("ja", "")).toBe("");
+  });
+});

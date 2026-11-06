@@ -4,8 +4,9 @@ import { ChevronRight, ShoppingBag, Store, type LucideIcon } from "lucide-react"
 import { pressable } from "@/components/ui/styles";
 import { chooseRole } from "@/lib/role";
 import type { Role } from "@/lib/roles";
+import { useT, type Msg } from "@/lib/i18n";
 
-const roles: { role: Role; icon: LucideIcon; title: string; body: string }[] = [
+const roles: { role: Role; icon: LucideIcon; title: Msg; body: Msg }[] = [
   {
     role: "buyer",
     icon: ShoppingBag,
@@ -21,10 +22,13 @@ const roles: { role: Role; icon: LucideIcon; title: string; body: string }[] = [
 ];
 
 export default function RolePage() {
+  const t = useT();
   return (
     <main className="mx-auto min-h-dvh w-full max-w-md px-4 pt-[max(2rem,env(safe-area-inset-top))] pb-[max(1.5rem,env(safe-area-inset-bottom))]">
-      <h1 className="font-display text-3xl font-bold tracking-tight">How will you use Molbhav?</h1>
-      <p className="mt-2 text-muted-foreground">You can switch any time from Profile.</p>
+      <h1 className="font-display text-3xl font-bold tracking-tight">
+        {t("How will you use Molbhav?")}
+      </h1>
+      <p className="mt-2 text-muted-foreground">{t("You can switch any time from Profile.")}</p>
 
       <ul className="mt-8 flex flex-col gap-3">
         {roles.map(({ role, icon: Icon, title, body }, i) => (
@@ -42,8 +46,8 @@ export default function RolePage() {
                 <Icon className="size-6" aria-hidden />
               </span>
               <span className="flex-1">
-                <span className="block font-display text-lg font-semibold">{title}</span>
-                <span className="block text-sm text-muted-foreground">{body}</span>
+                <span className="block font-display text-lg font-semibold">{t(title)}</span>
+                <span className="block text-sm text-muted-foreground">{t(body)}</span>
               </span>
               <ChevronRight className="size-5 shrink-0 text-muted-foreground" aria-hidden />
             </button>

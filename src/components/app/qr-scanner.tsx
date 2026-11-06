@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Camera, Loader2 } from "lucide-react";
 import { outlineButton, primaryButton } from "@/components/ui/styles";
+import { useT, useTx, type Text } from "@/lib/i18n";
 
 type Detector = { detect(src: HTMLVideoElement): Promise<{ rawValue: string }[]> };
 
@@ -40,11 +41,14 @@ export function QrScanner({
   onResult: (text: string) => void;
   onCancel: () => void;
 }) {
+  const t = useT();
+  const tx = useTx();
   const video = useRef<HTMLVideoElement>(null);
-  const [error, setError] = useState("");
+  // Kept in English and shown through tx(), so they switch with the app language.
+  const [error, setError] = useState<Text>("");
   const [ready, setReady] = useState(false);
   const [photoBusy, setPhotoBusy] = useState(false);
-  const [photoError, setPhotoError] = useState("");
+  const [photoError, setPhotoError] = useState<Text>("");
   const result = useRef(onResult);
   useEffect(() => {
     result.current = onResult;
@@ -103,7 +107,7 @@ export function QrScanner({
       } catch (e) {
         setError(
           (e as Error).name === "NotAllowedError"
-            ? "Camera access is off. Allow it in Settings, or take a photo of your QR instead."
+            ? "Camera access is off for Molbhav. Allow it in Settings, or take a photo of your QR instead."
             : "The camera didn’t start. Take a photo of your QR instead.",
         );
       }
@@ -119,7 +123,7 @@ export function QrScanner({
     <div className="grid gap-3">
       {error ? (
         <>
-          <p className="text-sm text-pretty text-muted-foreground">{error}</p>
+          <p className="text-sm text-pretty text-muted-foreground">{tx(error)}</p>
           <label
             className={`${primaryButton} w-full cursor-pointer ${photoBusy ? "pointer-events-none opacity-60" : ""}`}
           >
@@ -128,7 +132,7 @@ export function QrScanner({
             ) : (
               <Camera className="size-5" aria-hidden />
             )}
-            {photoBusy ? "Reading the QR…" : "Take a photo of your QR"}
+            {photoBusy ? t("Reading the QR…") : t("Take a photo of your QR")}
             <input
               type="file"
               accept="image/*"
@@ -157,7 +161,7 @@ export function QrScanner({
           </label>
           {photoError && (
             <p role="alert" className="text-sm font-medium text-destructive">
-              {photoError}
+              {tx(photoError)}
             </p>
           )}
         </>
@@ -168,7 +172,7 @@ export function QrScanner({
             playsInline
             muted
             className="aspect-square w-full object-cover"
-            aria-label="Camera view for scanning your UPI QR"
+            aria-label={t("Camera view for scanning your UPI QR")}
           />
           <div
             aria-hidden
@@ -176,13 +180,13 @@ export function QrScanner({
           />
           {!ready && (
             <p className="absolute inset-x-0 bottom-3 text-center text-sm font-semibold text-background">
-              Opening camera…
+              {t("Opening camera…")}
             </p>
           )}
         </div>
       )}
       <button type="button" onClick={onCancel} className={`${outlineButton} w-full`}>
-        {error ? "Type my UPI ID instead" : "Stop scanning"}
+        {error ? t("Type my UPI ID instead") : t("Stop scanning")}
       </button>
     </div>
   );

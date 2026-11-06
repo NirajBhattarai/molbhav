@@ -11,7 +11,7 @@ import { QrScanner } from "@/components/app/qr-scanner";
 import { CopyButton } from "@/components/ui/copy-button";
 import { Field, Sheet, fieldInput } from "@/components/ui/sheet";
 import { outlineButton, primaryButton } from "@/components/ui/styles";
-import { useT, type Msg } from "@/lib/i18n";
+import { useT, useTx, type Msg, type Text } from "@/lib/i18n";
 import { LANG, LANGS, type Lang } from "@/lib/languages";
 import type { ShopItem, ShopStall, StallStatus, Style } from "@/lib/server/shop";
 import {
@@ -52,6 +52,7 @@ export function ShopScreen({
   email: string;
 }) {
   const t = useT();
+  const tx = useTx();
   const [editingStall, setEditingStall] = useState(false);
   const steps = setupSteps(stall, items);
   const done = steps.filter((s) => s.done).length;
@@ -61,13 +62,14 @@ export function ShopScreen({
   const [status, setStatus] = useOptimistic(liveStatus);
   const [, startStatus] = useTransition();
   const [pinBusy, setPinBusy] = useState(false);
-  const [pinError, setPinError] = useState("");
+  // Errors and notices are kept in English and shown through tx(), so they switch with the language.
+  const [pinError, setPinError] = useState<Text>("");
   const open = status === "open";
 
   function shareLocation() {
     setPinError("");
     if (!navigator.geolocation) {
-      setPinError(t("This device can’t share location."));
+      setPinError("This device can’t share location.");
       return;
     }
     setPinBusy(true);
@@ -80,7 +82,7 @@ export function ShopScreen({
       },
       () => {
         setPinBusy(false);
-        setPinError(t("Couldn’t share location. Allow location access and try again."));
+        setPinError("Couldn’t share location. Allow location access and try again.");
       },
       { enableHighAccuracy: true, timeout: 15_000 },
     );
@@ -223,7 +225,7 @@ export function ShopScreen({
         </button>
         {pinError && (
           <p role="alert" className="text-sm text-destructive">
-            {pinError}
+            {tx(pinError)}
           </p>
         )}
       </section>
@@ -282,13 +284,14 @@ function AgentCard({
 /** Link an ESP32 stall sign: 6-digit OLED code (best) or offline claim pack. */
 function SignDeviceCreds() {
   const t = useT();
+  const tx = useTx();
   const [creds, setCreds] = useState<{
     agentId: string;
     deviceToken: string;
     claimPack: string;
   } | null>(null);
   const [code, setCode] = useState("");
-  const [msg, setMsg] = useState("");
+  const [msg, setMsg] = useState<Text>("");
   const [busy, setBusy] = useState(false);
   const [showAdvanced, setShowAdvanced] = useState(false);
 
@@ -306,9 +309,9 @@ function SignDeviceCreds() {
     try {
       const res = await linkStallSign(code);
       if (res && "error" in res) setMsg(String(res.error));
-      else setMsg(t("Sign linked. It will pick up this stall in a few seconds."));
+      else setMsg("Sign linked. It will pick up this stall in a few seconds.");
     } catch {
-      setMsg(t("Couldn’t link just now. Try again."));
+      setMsg("Couldn’t link just now. Try again.");
     } finally {
       setBusy(false);
     }
@@ -341,7 +344,7 @@ function SignDeviceCreds() {
       </form>
       {msg && (
         <p role="status" className="text-xs font-medium text-pretty">
-          {msg}
+          {tx(msg)}
         </p>
       )}
       <button
@@ -411,13 +414,14 @@ const qrVpa = (qr: string | null) => {
 
 function StallDetailsForm({ stall, onClose }: { stall: ShopStall | null; onClose: () => void }) {
   const t = useT();
+  const tx = useTx();
   const [name, setName] = useState(stall?.name ?? "");
   const [upi, setUpi] = useState(stall?.upi ?? "");
   const [qr, setQr] = useState<string | null>(stall?.qr ?? null);
   const [style, setStyle] = useState<Style>(stall?.style ?? "friendly");
   const [language, setLanguage] = useState<Lang>(stall?.lang ?? "en");
   const [scanning, setScanning] = useState(false);
-  const [error, setError] = useState("");
+  const [error, setError] = useState<Text>("");
   const [busy, setBusy] = useState(false);
 
   function onScanned(text: string) {
@@ -437,7 +441,7 @@ function StallDetailsForm({ stall, onClose }: { stall: ShopStall | null; onClose
     e.preventDefault();
     setError("");
     if (upi.trim() && !isVpa(upi)) {
-      setError(t("A UPI ID looks like name@bank, e.g. ramu@okaxis."));
+      setError("A UPI ID looks like name@bank, e.g. ramu@okaxis.");
       return;
     }
     const keepQr = qr && qrVpa(qr) === upi.trim().toLowerCase() ? qr : null;
@@ -452,7 +456,7 @@ function StallDetailsForm({ stall, onClose }: { stall: ShopStall | null; onClose
       onClose();
     } catch {
       setBusy(false);
-      setError(t("Something went wrong. Please try again."));
+      setError("Something went wrong. Please try again.");
     }
   }
 
@@ -546,7 +550,7 @@ function StallDetailsForm({ stall, onClose }: { stall: ShopStall | null; onClose
 
         {error && (
           <p role="alert" className="text-sm text-destructive">
-            {error}
+            {tx(error)}
           </p>
         )}
         <button type="submit" disabled={busy || scanning} className={`${primaryButton} w-full`}>

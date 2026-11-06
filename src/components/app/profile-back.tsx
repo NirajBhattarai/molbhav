@@ -3,10 +3,12 @@
 import Link from "next/link";
 import { ChevronLeft } from "lucide-react";
 import { focusRing } from "@/components/ui/styles";
+import { useT } from "@/lib/i18n";
 import { useRole } from "@/lib/role";
 import { roleHome } from "@/lib/roles";
 
 export function ProfileBack() {
+  const t = useT();
   const role = useRole();
   const href = role ? roleHome[role] : "/";
   return (
@@ -15,7 +17,7 @@ export function ProfileBack() {
       className={`-ml-2 grid size-11 shrink-0 place-items-center rounded-full transition-transform duration-150 active:scale-90 active:bg-muted ${focusRing}`}
     >
       <ChevronLeft className="size-6" aria-hidden />
-      <span className="sr-only">Back</span>
+      <span className="sr-only">{t("Back")}</span>
     </Link>
   );
 }
