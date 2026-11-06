@@ -4,10 +4,12 @@ import { useEffect, useState } from "react";
 import { ShieldCheck } from "lucide-react";
 import { BlockPrint } from "@/components/brand/block-print";
 import { CopyButton } from "@/components/ui/copy-button";
+import { useT } from "@/lib/i18n";
 import { hashscanAccountUrl, hederaNetwork, hederaWalletAddress, shortAddress } from "@/lib/magic";
 
 /** Account hero + Hedera wallet — same layout as the customer profile in molbhav-old. */
 export function ProfileAccount({ email }: { email: string }) {
+  const t = useT();
   const [wallet, setWallet] = useState<string | null>(null);
   const [loaded, setLoaded] = useState(false);
   const network = hederaNetwork();
@@ -30,7 +32,7 @@ export function ProfileAccount({ email }: { email: string }) {
   return (
     <>
       <section
-        aria-label="Account"
+        aria-label={t("Account")}
         className="relative isolate grid gap-4 overflow-hidden rounded-3xl bg-hero p-5 text-hero-foreground"
       >
         <BlockPrint className="pointer-events-none absolute inset-0 -z-10 text-secondary opacity-[0.08]" />
@@ -43,7 +45,7 @@ export function ProfileAccount({ email }: { email: string }) {
           </span>
           <div className="grid min-w-0 gap-0.5">
             <p className="truncate text-lg font-semibold">{email}</p>
-            <p className="text-sm text-hero-foreground/75">Signed in with an email code</p>
+            <p className="text-sm text-hero-foreground/75">{t("Signed in with an email code")}</p>
           </div>
         </div>
         {wallet && (
@@ -66,25 +68,25 @@ export function ProfileAccount({ email }: { email: string }) {
             </a>
             <CopyButton
               value={wallet}
-              label="Copy wallet address"
+              label={t("Copy wallet address")}
               className="hover:bg-hero-foreground/15"
             />
           </div>
         )}
         {loaded && !wallet && (
           <p className="text-sm text-hero-foreground/75">
-            Your Hedera wallet will show here once Magic has created it for this sign-in.
+            {t("Your Hedera wallet will show here once Magic has created it for this sign-in.")}
           </p>
         )}
       </section>
 
       <section className="mt-6">
-        <h2 className="mb-2 text-sm font-medium text-muted-foreground">Wallet</h2>
+        <h2 className="mb-2 text-sm font-medium text-muted-foreground">{t("Wallet")}</h2>
         <ul className="divide-y divide-border rounded-xl border border-border bg-card">
           {wallet && (
             <li className="flex items-center gap-3 px-4 py-3">
               <span className="grid min-w-0 flex-1 gap-0.5">
-                <span className="text-sm text-muted-foreground">Full address</span>
+                <span className="text-sm text-muted-foreground">{t("Full address")}</span>
                 <a
                   href={hashscanAccountUrl(wallet, network)}
                   target="_blank"
@@ -97,7 +99,7 @@ export function ProfileAccount({ email }: { email: string }) {
               </span>
               <CopyButton
                 value={wallet}
-                label="Copy full wallet address"
+                label={t("Copy full wallet address")}
                 className="text-muted-foreground hover:bg-accent"
               />
             </li>
@@ -105,8 +107,10 @@ export function ProfileAccount({ email }: { email: string }) {
           <li className="flex items-center gap-3 px-4 py-3">
             <ShieldCheck className="size-5 shrink-0 text-success" aria-hidden />
             <span className="grid min-w-0 flex-1 gap-0.5">
-              <span className="font-medium">Only you can spend from it</span>
-              <span className="text-sm text-muted-foreground">Molbhav never sees your keys.</span>
+              <span className="font-medium">{t("Only you can spend from it")}</span>
+              <span className="text-sm text-muted-foreground">
+                {t("Molbhav never sees your keys.")}
+              </span>
             </span>
           </li>
         </ul>

@@ -14,13 +14,13 @@ import { Chip } from "@/components/ui/chip";
 import { Sheet } from "@/components/ui/sheet";
 import { action, focusRing } from "@/components/ui/styles";
 import { useNearbyStalls } from "@/lib/ble/scan";
-import { useLang } from "@/lib/app-lang";
 import { useDiscoveryMode } from "@/lib/discovery";
+import { useLang, useT } from "@/lib/i18n";
 import { LANG } from "@/lib/languages";
 import { rupees, type HeardWant } from "@/lib/want";
 import { readWant } from "@/lib/want-actions";
 
-const QUICK_PICKS = ["2 chai and 2 samosa", "Tomatoes & onions", "Pani puri for 4"];
+const QUICK_PICKS = ["2 chai, 2 samosa", "Tomatoes & onions", "Pani puri for 4"] as const;
 /** Seconds after hearing a spoken order before search starts (buyer can Stop). */
 const COUNTDOWN = 3;
 
@@ -54,6 +54,7 @@ const noSubscribe = () => () => {};
 
 /** Home CTA: open “What do you want?” to speak or type an order. */
 export function WantForm() {
+  const t = useT();
   const [open, setOpen] = useState(false);
   const [session, setSession] = useState(0);
   return (
@@ -67,7 +68,7 @@ export function WantForm() {
         className={`${action.secondary} mt-5`}
       >
         <Mic className="size-5" aria-hidden />
-        Speak your order
+        {t("Speak your order")}
       </button>
       {open && <WantSheet key={session} onClose={() => setOpen(false)} />}
     </>
@@ -75,6 +76,7 @@ export function WantForm() {
 }
 
 function WantSheet({ onClose }: { onClose: () => void }) {
+  const t = useT();
   const lang = useLang();
   const discovery = useDiscoveryMode();
   const nearby = useNearbyStalls(discovery === "nearby");
@@ -150,7 +152,7 @@ function WantSheet({ onClose }: { onClose: () => void }) {
       setCountdown(COUNTDOWN);
     } catch {
       if (openRef.current && turn === turnRef.current) {
-        setError("Couldn’t read that order. Try typing it.");
+        setError(t("Couldn’t read that order. Try typing it."));
       }
     } finally {
       if (openRef.current && turn === turnRef.current) setReading(false);
@@ -202,10 +204,10 @@ function WantSheet({ onClose }: { onClose: () => void }) {
     rec.onerror = (e) =>
       setMicError(
         e.error === "not-allowed" || e.error === "service-not-allowed"
-          ? "Microphone access is off. Allow it in Settings, or type your order."
+          ? t("Microphone access is off. Allow it in Settings, or type your order.")
           : e.error === "no-speech"
-            ? "Didn’t catch that. Tap the mic and try again."
-            : "Couldn’t listen just now. Type your order instead.",
+            ? t("Didn’t catch that. Tap the mic and try again.")
+            : t("Couldn’t listen just now. Type your order instead."),
       );
     // Buyer stopped talking (or tapped stop): parse and start the search countdown.
     rec.onend = () => {
@@ -264,8 +266,10 @@ function WantSheet({ onClose }: { onClose: () => void }) {
   return (
     <Sheet
       onClose={onClose}
-      title="What do you want?"
-      description="Say it like you would to a shopkeeper. Your agent bargains with every open stall."
+      title={t("What do you want?")}
+      description={t(
+        "Say it like you would to a shopkeeper. Your agent bargains with every open stall.",
+      )}
       footer={
         showStart || searching ? (
           <button
@@ -277,11 +281,11 @@ function WantSheet({ onClose }: { onClose: () => void }) {
             {searching || reading ? (
               <>
                 <Loader2 className="size-5 animate-spin" aria-hidden />
-                {reading ? "Reading your order…" : "Finding stalls…"}
+                {reading ? t("Reading your order…") : t("Finding stalls…")}
               </>
             ) : (
               <>
-                Start bargaining <ArrowRight className="size-5" aria-hidden />
+                {t("Start bargaining")} <ArrowRight className="size-5" aria-hidden />
               </>
             )}
           </button>
@@ -301,12 +305,12 @@ function WantSheet({ onClose }: { onClose: () => void }) {
           {discovery === "nearby"
             ? nearby.native
               ? nearby.blocked
-                ? "Turn on Bluetooth to find stalls nearby."
+                ? t("Turn on Bluetooth to find stalls nearby.")
                 : nearby.agents.length
-                  ? `Stalls heard nearby: ${nearby.agents.length}`
-                  : "Looking for stalls nearby…"
-              : "Finding stalls via nearby agents — use the iPhone app to hear beacons."
-            : "Finding stalls by location (change in Profile)."}
+                  ? t("Stalls heard nearby: {n}", { n: nearby.agents.length })
+                  : t("Looking for stalls nearby…")
+              : t("Looking for stalls nearby…")
+            : t("Search by location")}
         </p>
         <input type="hidden" name="discovery" value={discovery} />
         <input type="hidden" name="lang" value={lang} />
@@ -320,7 +324,7 @@ function WantSheet({ onClose }: { onClose: () => void }) {
               type="button"
               onClick={listen}
               aria-pressed={listening}
-              aria-label={listening ? "Stop listening" : "Speak your order"}
+              aria-label={listening ? t("Stop listening") : t("Speak your order")}
               className={`relative flex size-20 items-center justify-center rounded-full bg-secondary text-secondary-foreground shadow-sm transition-transform duration-150 ease-out active:scale-[0.97] ${focusRing}`}
             >
               {listening && (
@@ -340,17 +344,17 @@ function WantSheet({ onClose }: { onClose: () => void }) {
               className="min-h-5 text-center text-sm font-medium text-muted-foreground"
             >
               {listening
-                ? "Listening… just stop talking when you’re done"
+                ? t("Listening… just stop talking when you’re done")
                 : reading
-                  ? "Reading your order…"
-                  : micError || "Tap to speak. Searching starts when you stop."}
+                  ? t("Reading your order…")
+                  : micError || t("Tap to speak. Bargaining starts when you stop.")}
             </p>
           </div>
         )}
 
         <div className="grid gap-1.5">
           <label htmlFor="want" className="text-sm font-semibold">
-            {canListen ? "Or type it" : "Your order"}
+            {canListen ? t("Or type it") : t("Your order")}
           </label>
           <textarea
             id="want"
@@ -362,7 +366,7 @@ function WantSheet({ onClose }: { onClose: () => void }) {
             onChange={onType}
             autoComplete="off"
             enterKeyHint="go"
-            placeholder="e.g. 2 chai and 2 samosa, under ₹100…"
+            placeholder={t("e.g. 2 chai and 2 samosa, under ₹100…")}
             className="w-full resize-none rounded-lg border border-input bg-background px-3 py-2.5 text-base transition-[border-color,box-shadow] duration-150 ease-out outline-none placeholder:text-muted-foreground/70 focus-visible:border-primary focus-visible:ring-3 focus-visible:ring-primary/20"
           />
         </div>
@@ -370,7 +374,7 @@ function WantSheet({ onClose }: { onClose: () => void }) {
         {heard && heard.items.length > 0 && (
           <div className="grid animate-[rise_200ms_var(--ease-out)_both] gap-2.5 rounded-xl border border-border p-3">
             <p className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">
-              Your agent heard
+              {t("Your agent heard")}
             </p>
             <ul className="flex flex-wrap gap-1.5">
               {heard.items.map((item) => (
@@ -380,7 +384,7 @@ function WantSheet({ onClose }: { onClose: () => void }) {
               ))}
               {heard.budget !== null && (
                 <li>
-                  <Chip tone="marigold">Under {rupees(heard.budget)}</Chip>
+                  <Chip tone="marigold">{t("Under {price}", { price: rupees(heard.budget) })}</Chip>
                 </li>
               )}
             </ul>
@@ -388,14 +392,14 @@ function WantSheet({ onClose }: { onClose: () => void }) {
               <div className="grid animate-[rise_200ms_var(--ease-out)_both] gap-1.5">
                 <div className="flex items-center justify-between gap-3">
                   <p role="status" className="text-sm font-medium tabular-nums">
-                    Searching in {countdown}…
+                    {t("Bargaining in {seconds}…", { seconds: countdown })}
                   </p>
                   <button
                     type="button"
                     onClick={() => setCountdown(null)}
                     className={`min-h-11 rounded-lg px-4 text-sm font-semibold text-primary transition-[background-color,transform] duration-150 ease-out hover:bg-accent active:scale-[0.97] ${focusRing}`}
                   >
-                    Stop
+                    {t("Stop")}
                   </button>
                 </div>
                 <span aria-hidden className="h-1 overflow-hidden rounded-full bg-muted">
@@ -409,17 +413,21 @@ function WantSheet({ onClose }: { onClose: () => void }) {
             {searched && (
               <p role="status" className="text-sm text-pretty text-muted-foreground">
                 {heard.stalls.length
-                  ? `Found ${heard.stalls.length} open stall${heard.stalls.length === 1 ? "" : "s"}: ${heard.stalls
-                      .map((s) => s.name)
-                      .join(", ")}. Full bargaining comes next.`
-                  : `Heard “${heard.english}”, but no open stall sells that yet. Ask a shop to open, or try other words.`}
+                  ? t("Found {n} open stalls: {names}. Full bargaining comes next.", {
+                      n: heard.stalls.length,
+                      names: heard.stalls.map((s) => s.name).join(", "),
+                    })
+                  : t(
+                      "Heard “{order}”, but no open stall sells that yet. Ask a shop to open, or try other words.",
+                      { order: heard.english },
+                    )}
               </p>
             )}
           </div>
         )}
 
         {!(heard && heard.items.length > 0) && (
-          <ul aria-label="Quick picks" className="flex flex-wrap gap-2">
+          <ul aria-label={t("Quick picks")} className="flex flex-wrap gap-2">
             {QUICK_PICKS.map((pick) => (
               <li key={pick}>
                 <button
@@ -433,7 +441,7 @@ function WantSheet({ onClose }: { onClose: () => void }) {
                   }}
                   className={`min-h-11 rounded-full border border-input px-3.5 text-sm font-medium transition-[background-color,transform] duration-150 ease-out hover:bg-accent active:scale-[0.97] ${focusRing}`}
                 >
-                  {pick}
+                  {t(pick)}
                 </button>
               </li>
             ))}

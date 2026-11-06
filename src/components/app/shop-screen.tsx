@@ -11,6 +11,7 @@ import { QrScanner } from "@/components/app/qr-scanner";
 import { CopyButton } from "@/components/ui/copy-button";
 import { Field, Sheet, fieldInput } from "@/components/ui/sheet";
 import { outlineButton, primaryButton } from "@/components/ui/styles";
+import { useT, type Msg } from "@/lib/i18n";
 import { LANG, LANGS, type Lang } from "@/lib/languages";
 import type { ShopItem, ShopStall, StallStatus, Style } from "@/lib/server/shop";
 import {
@@ -24,12 +25,16 @@ import { isVpa, parseUpi } from "@/lib/upi";
 
 function setupSteps(stall: ShopStall | null, items: ShopItem[]) {
   return [
-    { id: "name", label: "Name your stall", done: !!stall?.name.trim() },
-    { id: "upi", label: "Add your UPI ID for payouts", done: !!stall && isVpa(stall.upi) },
-    { id: "menu", label: "Add something you sell", done: items.length > 0 },
+    { id: "name", label: "Name your stall" as Msg, done: !!stall?.name.trim() },
+    {
+      id: "upi",
+      label: "Add your UPI ID for payouts" as Msg,
+      done: !!stall && isVpa(stall.upi),
+    },
+    { id: "menu", label: "Add something you sell" as Msg, done: items.length > 0 },
     {
       id: "pin",
-      label: "Share your stall location",
+      label: "Share live location" as Msg,
       done: stall?.lat != null && stall?.lng != null,
     },
   ] as const;
@@ -46,6 +51,7 @@ export function ShopScreen({
   canReadMenu: boolean;
   email: string;
 }) {
+  const t = useT();
   const [editingStall, setEditingStall] = useState(false);
   const steps = setupSteps(stall, items);
   const done = steps.filter((s) => s.done).length;
@@ -61,7 +67,7 @@ export function ShopScreen({
   function shareLocation() {
     setPinError("");
     if (!navigator.geolocation) {
-      setPinError("This device can’t share location.");
+      setPinError(t("This device can’t share location."));
       return;
     }
     setPinBusy(true);
@@ -74,7 +80,7 @@ export function ShopScreen({
       },
       () => {
         setPinBusy(false);
-        setPinError("Couldn’t share location. Allow location access and try again.");
+        setPinError(t("Couldn’t share location. Allow location access and try again."));
       },
       { enableHighAccuracy: true, timeout: 15_000 },
     );
@@ -91,8 +97,8 @@ export function ShopScreen({
       <HomeRefresh everyMs={4_000} />
       <header className="flex items-center justify-between gap-3">
         <div>
-          <p className="text-sm font-medium text-muted-foreground">For shopkeepers</p>
-          <h1 className="font-display text-3xl font-bold tracking-tight">Your stall</h1>
+          <p className="text-sm font-medium text-muted-foreground">{t("For shopkeepers")}</p>
+          <h1 className="font-display text-3xl font-bold tracking-tight">{t("Your stall")}</h1>
         </div>
         <Link
           href="/profile"
@@ -103,23 +109,23 @@ export function ShopScreen({
         </Link>
       </header>
 
-      <HeroCard label="Stall">
+      <HeroCard label={t("Stall")}>
         <div className="flex items-center gap-3">
           <span className="flex size-12 shrink-0 items-center justify-center rounded-2xl bg-secondary text-secondary-foreground shadow-sm">
             <Store className="size-6" aria-hidden />
           </span>
           <div className="grid min-w-0 flex-1">
             <p className="line-clamp-2 font-display text-xl leading-tight font-bold tracking-tight">
-              {stall?.name || "Unnamed stall"}
+              {stall?.name || t("Unnamed stall")}
             </p>
             <p className="truncate text-sm text-hero-foreground/75">
-              {stall?.upi ? `Payouts to ${stall.upi}` : "No UPI ID yet"}
+              {stall?.upi ? t("Payouts to {upi}", { upi: stall.upi }) : t("No UPI ID yet")}
             </p>
           </div>
           <button
             type="button"
             onClick={() => setEditingStall(true)}
-            aria-label="Edit stall name and UPI ID"
+            aria-label={t("Edit stall name and UPI ID")}
             className="-mr-1.5 flex size-11 shrink-0 items-center justify-center rounded-full text-hero-foreground/80 transition-[background-color,transform] duration-150 ease-out hover:bg-hero-foreground/10 active:scale-[0.97]"
           >
             <Pencil className="size-5" aria-hidden />
@@ -138,12 +144,12 @@ export function ShopScreen({
           }
           hint={
             !ready
-              ? "Finish the checklist below. Until then the stall stays closed."
+              ? t("Finish the checklist below. Until then the stall stays closed.")
               : status === "open"
-                ? "Synced with your sign. Tap here or press POWER on the sign."
+                ? t("Synced with your sign. Tap here or press POWER on the sign.")
                 : status === "paused"
-                  ? "Synced with your sign. Tap here or press PAUSE on the sign."
-                  : "Synced with your sign. Tap Open here or press POWER on the sign."
+                  ? t("Synced with your sign. Tap here or press PAUSE on the sign.")
+                  : t("Synced with your sign. Tap Open here or press POWER on the sign.")
           }
         />
       </HeroCard>
@@ -153,7 +159,7 @@ export function ShopScreen({
           <div className="flex items-center gap-4 border-b border-border px-4 py-3">
             <Progress done={done} total={steps.length} />
             <p className="text-sm text-muted-foreground">
-              {done} of {steps.length} done. Your stall can open when all four are.
+              {t("Finish the checklist below. Until then the stall stays closed.")}
             </p>
           </div>
           <ul>
@@ -182,7 +188,7 @@ export function ShopScreen({
                     step.done ? "text-muted-foreground line-through" : "text-foreground"
                   }`}
                 >
-                  {step.label}
+                  {t(step.label)}
                 </button>
               </li>
             ))}
@@ -195,15 +201,25 @@ export function ShopScreen({
       <section className="grid gap-3 rounded-2xl border border-border bg-card p-4">
         <div className="flex items-center gap-2">
           <MapPin className="size-5 text-primary" aria-hidden />
-          <h2 className="font-display text-base font-semibold">Location</h2>
+          <h2 className="font-display text-base font-semibold">{t("Location")}</h2>
         </div>
         <p className="text-sm text-muted-foreground">
           {pinned
-            ? `Pinned at ${stall!.lat!.toFixed(5)}, ${stall!.lng!.toFixed(5)}`
-            : "Buyers’ agents only find stalls that are pinned."}
+            ? t(
+                "Your stall is pinned at {lat}, {lon}. Buyers get Directions in Maps and agents find you nearby.",
+                {
+                  lat: stall!.lat!.toFixed(5),
+                  lon: stall!.lng!.toFixed(5),
+                },
+              )
+            : t("Buyers’ agents only find stalls that are pinned.")}
         </p>
         <button type="button" disabled={pinBusy} onClick={shareLocation} className={outlineButton}>
-          {pinBusy ? "Getting location…" : pinned ? "Update location" : "Share live location"}
+          {pinBusy
+            ? t("Getting location…")
+            : pinned
+              ? t("Update location")
+              : t("Share live location")}
         </button>
         {pinError && (
           <p role="alert" className="text-sm text-destructive">
@@ -228,9 +244,10 @@ function AgentCard({
   open: boolean;
   agentId: string | null;
 }) {
+  const t = useT();
   return (
     <section
-      aria-label="Your AI agent"
+      aria-label={t("Your AI agent")}
       className="flex items-start gap-3 rounded-2xl border border-border bg-card p-4 text-card-foreground"
     >
       <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
@@ -238,22 +255,22 @@ function AgentCard({
       </span>
       <div className="grid min-w-0 flex-1 gap-0.5">
         <div className="flex flex-wrap items-center gap-2">
-          <p className="font-semibold">Your AI agent</p>
+          <p className="font-semibold">{t("Your AI agent")}</p>
           <span
             className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
               open ? "bg-success/15 text-success" : "bg-muted text-muted-foreground"
             }`}
           >
-            {open ? "Live" : "Off"}
+            {open ? t("Live") : t("Off")}
           </span>
         </div>
         <p className="text-sm text-pretty text-muted-foreground">
           {open
             ? style === "firm"
-              ? "Bargaining with buyers now, firmly, in their language."
-              : "Bargaining with buyers now, in a friendly way, in their language."
-            : "Open your stall and it starts bargaining with buyers."}{" "}
-          It never goes below your lowest price.
+              ? t("Bargaining with buyers now, firmly, in their language.")
+              : t("Bargaining with buyers now, in a friendly way, in their language.")
+            : t("Open your stall and it starts bargaining with buyers.")}{" "}
+          {t("It never goes below your lowest price.")}
         </p>
         {open && agentId && <AgentCardAddress path={stallAgentCardPath(agentId)} />}
         {agentId && <SignDeviceCreds />}
@@ -264,6 +281,7 @@ function AgentCard({
 
 /** Link an ESP32 stall sign: 6-digit OLED code (best) or offline claim pack. */
 function SignDeviceCreds() {
+  const t = useT();
   const [creds, setCreds] = useState<{
     agentId: string;
     deviceToken: string;
@@ -288,9 +306,9 @@ function SignDeviceCreds() {
     try {
       const res = await linkStallSign(code);
       if (res && "error" in res) setMsg(String(res.error));
-      else setMsg("Sign linked. It will pick up this stall in a few seconds.");
+      else setMsg(t("Sign linked. It will pick up this stall in a few seconds."));
     } catch {
-      setMsg("Couldn’t link just now. Try again.");
+      setMsg(t("Couldn’t link just now. Try again."));
     } finally {
       setBusy(false);
     }
@@ -299,10 +317,11 @@ function SignDeviceCreds() {
   return (
     <div className="mt-3 grid gap-3 rounded-xl border border-border/80 bg-muted/40 p-3">
       <div>
-        <p className="text-xs font-semibold text-muted-foreground">Stall sign</p>
+        <p className="text-xs font-semibold text-muted-foreground">{t("Stall sign")}</p>
         <p className="mt-1 text-xs text-pretty text-muted-foreground">
-          Easiest: join the sign’s hotspot, save market Wi‑Fi only, then enter the 6-digit code from
-          its screen here.
+          {t(
+            "Easiest: join the sign’s hotspot, save market Wi‑Fi only, then enter the 6-digit code from its screen here.",
+          )}
         </p>
       </div>
       <form onSubmit={link} className="flex flex-wrap items-center gap-2">
@@ -314,10 +333,10 @@ function SignDeviceCreds() {
           value={code}
           onChange={(e) => setCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
           className="h-10 w-28 rounded-lg border border-input bg-background px-3 font-mono text-base tracking-widest tabular-nums outline-none focus-visible:border-primary"
-          aria-label="Six-digit code from the sign"
+          aria-label={t("Six-digit code from the sign")}
         />
         <button type="submit" disabled={busy || code.length !== 6} className={primaryButton}>
-          {busy ? "Linking…" : "Link sign"}
+          {busy ? t("Linking…") : t("Link sign")}
         </button>
       </form>
       {msg && (
@@ -330,17 +349,18 @@ function SignDeviceCreds() {
         onClick={() => setShowAdvanced((v) => !v)}
         className="justify-self-start text-xs font-semibold text-primary"
       >
-        {showAdvanced ? "Hide" : "Offline claim pack / USB"}
+        {showAdvanced ? t("Hide") : t("Offline claim pack / USB")}
       </button>
       {showAdvanced && (
         <div className="grid gap-2">
           <p className="text-xs text-pretty text-muted-foreground">
-            No internet on the phone while you’re on the sign hotspot? Copy the claim pack first,
-            paste it into the sign’s setup page as one field.
+            {t(
+              "No internet on the phone while you’re on the sign hotspot? Copy the claim pack first, paste it into the sign’s setup page as one field.",
+            )}
           </p>
-          <CredRow label="Claim pack" value={creds.claimPack} />
-          <CredRow label="Agent id" value={creds.agentId} />
-          <CredRow label="Device token" value={creds.deviceToken} />
+          <CredRow label={t("Claim pack")} value={creds.claimPack} />
+          <CredRow label={t("Agent id")} value={creds.agentId} />
+          <CredRow label={t("Device token")} value={creds.deviceToken} />
         </div>
       )}
     </div>
@@ -348,6 +368,7 @@ function SignDeviceCreds() {
 }
 
 function CredRow({ label, value }: { label: string; value: string }) {
+  const t = useT();
   return (
     <div className="flex min-w-0 items-center gap-1 rounded-lg bg-background/80 py-0.5 ps-2.5">
       <span className="shrink-0 text-[10px] font-semibold tracking-wide text-muted-foreground uppercase">
@@ -356,7 +377,11 @@ function CredRow({ label, value }: { label: string; value: string }) {
       <code translate="no" className="min-w-0 flex-1 truncate font-mono text-xs">
         {value}
       </code>
-      <CopyButton value={value} label={`Copy ${label}`} className="text-muted-foreground" />
+      <CopyButton
+        value={value}
+        label={t("Copy {label}", { label })}
+        className="text-muted-foreground"
+      />
     </div>
   );
 }
@@ -385,6 +410,7 @@ const qrVpa = (qr: string | null) => {
 };
 
 function StallDetailsForm({ stall, onClose }: { stall: ShopStall | null; onClose: () => void }) {
+  const t = useT();
   const [name, setName] = useState(stall?.name ?? "");
   const [upi, setUpi] = useState(stall?.upi ?? "");
   const [qr, setQr] = useState<string | null>(stall?.qr ?? null);
@@ -411,7 +437,7 @@ function StallDetailsForm({ stall, onClose }: { stall: ShopStall | null; onClose
     e.preventDefault();
     setError("");
     if (upi.trim() && !isVpa(upi)) {
-      setError("A UPI ID looks like name@bank, e.g. ramu@okaxis.");
+      setError(t("A UPI ID looks like name@bank, e.g. ramu@okaxis."));
       return;
     }
     const keepQr = qr && qrVpa(qr) === upi.trim().toLowerCase() ? qr : null;
@@ -426,28 +452,28 @@ function StallDetailsForm({ stall, onClose }: { stall: ShopStall | null; onClose
       onClose();
     } catch {
       setBusy(false);
-      setError("Something went wrong. Please try again.");
+      setError(t("Something went wrong. Please try again."));
     }
   }
 
   return (
-    <Sheet title="Stall details" onClose={onClose}>
+    <Sheet title={t("Stall details")} onClose={onClose}>
       <form onSubmit={onSubmit} noValidate className="grid gap-4">
         {scanning ? (
           <QrScanner onResult={onScanned} onCancel={() => setScanning(false)} />
         ) : (
           <>
-            <Field label="Stall name" htmlFor="stall-name">
+            <Field label={t("Stall name")} htmlFor="stall-name">
               <input
                 id="stall-name"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 maxLength={60}
-                placeholder="Ramu’s chai"
+                placeholder={t("e.g. Ramu Tea Stall…")}
                 className={fieldInput}
               />
             </Field>
-            <Field label="UPI ID" htmlFor="stall-upi">
+            <Field label={t("UPI ID")} htmlFor="stall-upi">
               <div className="relative">
                 <input
                   id="stall-upi"
@@ -468,7 +494,7 @@ function StallDetailsForm({ stall, onClose }: { stall: ShopStall | null; onClose
                     setError("");
                     setScanning(true);
                   }}
-                  aria-label="Scan UPI QR"
+                  aria-label={t("Scan your UPI QR")}
                   className="absolute top-1/2 right-0.5 flex size-11 -translate-y-1/2 items-center justify-center rounded-md text-muted-foreground hover:text-foreground"
                 >
                   <Camera className="size-5" aria-hidden />
@@ -476,34 +502,34 @@ function StallDetailsForm({ stall, onClose }: { stall: ShopStall | null; onClose
               </div>
               <p className="mt-1 text-sm text-muted-foreground">
                 {qr && upi.trim().toLowerCase() === qrVpa(qr)
-                  ? "From your QR. Payments go here."
-                  : "Type your UPI ID, or tap the camera to scan your QR."}
+                  ? t("From your QR. Payments go here.")
+                  : t("Type your UPI ID, or tap the camera to scan your QR.")}
               </p>
             </Field>
           </>
         )}
 
         <fieldset>
-          <legend className="mb-2 text-sm font-medium">How your agent bargains</legend>
+          <legend className="mb-2 text-sm font-medium">{t("How your agent bargains")}</legend>
           <div className="grid grid-cols-2 gap-2">
             {(["friendly", "firm"] as const).map((s) => (
               <button
                 key={s}
                 type="button"
                 onClick={() => setStyle(s)}
-                className={`h-11 rounded-lg border text-sm font-medium capitalize ${
+                className={`h-11 rounded-lg border text-sm font-medium ${
                   style === s
                     ? "border-primary bg-primary/5 text-primary"
                     : "border-input bg-background"
                 }`}
               >
-                {s}
+                {t(s === "friendly" ? "Friendly" : "Firm")}
               </button>
             ))}
           </div>
         </fieldset>
 
-        <Field label="Your language" htmlFor="stall-lang">
+        <Field label={t("Your language")} htmlFor="stall-lang">
           <select
             id="stall-lang"
             value={language}
@@ -524,7 +550,7 @@ function StallDetailsForm({ stall, onClose }: { stall: ShopStall | null; onClose
           </p>
         )}
         <button type="submit" disabled={busy || scanning} className={`${primaryButton} w-full`}>
-          {busy ? "Saving…" : "Save"}
+          {busy ? t("Saving…") : t("Save")}
         </button>
       </form>
     </Sheet>

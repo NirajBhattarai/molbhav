@@ -11,19 +11,20 @@ import {
   useDiscoveryMode,
   type DiscoveryMode,
 } from "@/lib/discovery";
+import { useT, type Msg } from "@/lib/i18n";
 import { chooseRole, signOut, useRole } from "@/lib/role";
 import type { Role } from "@/lib/roles";
 import { saveDiscoveryMode } from "@/lib/settings-actions";
 
-const roles: { role: Role; label: string }[] = [
+const roles: { role: Role; label: Msg }[] = [
   { role: "buyer", label: "Buyer" },
   { role: "shopkeeper", label: "Stall" },
 ];
 
 const discoveryModes: {
   id: DiscoveryMode;
-  label: string;
-  hint: string;
+  label: Msg;
+  hint: Msg;
   Icon: typeof MapPin;
 }[] = [
   {
@@ -48,6 +49,7 @@ export function ProfileSettings({
   /** Server value (Redis → DB) to seed the local mirror. */
   initialDiscovery?: DiscoveryMode;
 }) {
+  const t = useT();
   const current = useRole();
   const discovery = useDiscoveryMode();
   const [leaving, setLeaving] = useState(false);
@@ -74,7 +76,7 @@ export function ProfileSettings({
     <>
       <section className="mt-6">
         <h2 id="role-label" className="mb-2 text-sm font-medium text-muted-foreground">
-          Using Molbhav as
+          {t("Using Molbhav as")}
         </h2>
         <div
           role="group"
@@ -91,7 +93,7 @@ export function ProfileSettings({
                 current === role ? "bg-primary text-primary-foreground" : "text-muted-foreground"
               }`}
             >
-              {label}
+              {t(label)}
             </button>
           ))}
         </div>
@@ -102,7 +104,7 @@ export function ProfileSettings({
       {(current === "buyer" || current === null) && (
         <section className="mt-6">
           <h2 id="discovery-label" className="mb-2 text-sm font-medium text-muted-foreground">
-            How your agent finds stalls
+            {t("How your agent finds stalls")}
           </h2>
           <div
             role="group"
@@ -129,13 +131,13 @@ export function ProfileSettings({
                   }`}
                 >
                   <Icon className={`size-4 shrink-0 ${on ? "text-primary" : ""}`} aria-hidden />
-                  <span className="truncate">{label}</span>
+                  <span className="truncate">{t(label)}</span>
                 </button>
               );
             })}
           </div>
           <p className="mt-2 text-sm text-muted-foreground">
-            {discoveryModes.find((m) => m.id === discovery)?.hint}
+            {t(discoveryModes.find((m) => m.id === discovery)!.hint)}
           </p>
         </section>
       )}
@@ -143,18 +145,18 @@ export function ProfileSettings({
       <section className="mt-6 divide-y divide-border rounded-xl border border-border bg-card">
         <div className="flex items-center justify-between gap-3 p-4">
           <span className="min-w-0">
-            <span className="block font-medium">Language</span>
+            <span className="block font-medium">{t("Language")}</span>
             <span className="block text-sm text-muted-foreground">
-              For the app&apos;s words. Chats are translated either way.
+              {t("For the app's words. Chats are translated either way.")}
             </span>
           </span>
           <LanguagePicker className="border border-input hover:bg-accent" />
         </div>
         <div className="flex items-center justify-between gap-3 p-4">
           <span className="min-w-0">
-            <span className="block font-medium">Appearance</span>
+            <span className="block font-medium">{t("Appearance")}</span>
             <span className="block text-sm text-muted-foreground">
-              Follows your phone unless you pick one
+              {t("Follows your phone unless you pick one")}
             </span>
           </span>
           <ThemeToggle />
@@ -171,7 +173,7 @@ export function ProfileSettings({
         className={`${action.outline} mt-8 disabled:opacity-60`}
       >
         <LogOut className="size-5" aria-hidden />
-        {leaving ? "Signing out…" : "Sign out"}
+        {leaving ? t("Signing out…") : t("Sign out")}
       </button>
     </>
   );
