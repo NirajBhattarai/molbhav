@@ -194,7 +194,9 @@ export async function understandWant(raw: string, lang = "en"): Promise<HeardWan
 
   // Always run Gemini item parse + menu + budget together (local parse is fallback only).
   const [gemLines, menu, budget] = await Promise.all([
-    geminiConfigured() ? parseWantGemini(`${english}\n${want}`) : Promise.resolve([] as WantLine[]),
+    // One copy of the order only: given the English and the original together, Gemini reads the
+    // same order twice and adds the quantities up ("2 chai" came back as 4).
+    geminiConfigured() ? parseWantGemini(english) : Promise.resolve([] as WantLine[]),
     openMenu(),
     (async () => priceIn(`${want} ${english}`) ?? (await limitIn(`${want} ${english}`)))(),
   ]);

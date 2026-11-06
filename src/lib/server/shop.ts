@@ -59,6 +59,10 @@ export type NearbyStall = {
   lang: Lang;
   open: boolean;
   agentId: string | null;
+  /** Menu item names, cheapest first: the row's preview and what search looks through. */
+  items: string[];
+  /** The cheapest asking price on the menu. */
+  from: number | null;
 };
 
 /**
@@ -72,12 +76,18 @@ export async function stallsNear(): Promise<NearbyStall[]> {
     lang: Lang;
     is_open: boolean;
     agent_id: string | null;
+    items: string[];
+    from: number | null;
   }>(
-    `SELECT id, name, lang, is_open, agent_id FROM stalls
-     WHERE name <> '' AND upi_id IS NOT NULL AND lat IS NOT NULL AND lng IS NOT NULL
-       AND EXISTS (SELECT 1 FROM stall_items i WHERE i.stall_id = stalls.id AND i.active)
-     ORDER BY is_open DESC, updated_at DESC
-     LIMIT 40`,
+    `SELECT s.id, s.name, s.lang, s.is_open, s.agent_id, m.items, m.from
+     FROM stalls s
+     JOIN LATERAL (
+       SELECT array_agg(i.name ORDER BY i.price, i.id) AS items, min(i.price) AS from
+       FROM stall_items i WHERE i.stall_id = s.id AND i.active
+     ) m ON m.items IS NOT NULL
+     WHERE s.name <> '' AND s.upi_id IS NOT NULL AND s.lat IS NOT NULL AND s.lng IS NOT NULL
+     ORDER BY s.is_open DESC, s.updated_at DESC
+     LIMIT 100`,
   );
   return rows.map((r) => ({
     id: r.id,
@@ -85,6 +95,8 @@ export async function stallsNear(): Promise<NearbyStall[]> {
     lang: r.lang,
     open: r.is_open,
     agentId: r.agent_id,
+    items: r.items,
+    from: r.from,
   }));
 }
 
