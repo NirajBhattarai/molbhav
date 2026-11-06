@@ -142,11 +142,16 @@ export async function orderPaid(id: string, stallId: string, settleTx: string) {
   );
 }
 
-/** Plans this bargain's order once the agents have finished (`talked`), if it has none yet. */
+/**
+ * Plans this bargain's order once the agents have finished (`talked`), if it has none yet. True
+ * when it planned one (so a page showing the bargain should read it again).
+ */
 export async function autoOrderStep(buyerId: string, id: string, talked = false) {
   const state = await stateOf(buyerId, id);
-  if (!state?.autoOrder || state.auto) return;
-  if (talked || state.settled) await plan(buyerId, id);
+  if (!state?.autoOrder || state.auto) return false;
+  if (!talked && !state.settled) return false;
+  await plan(buyerId, id);
+  return true;
 }
 
 /** Run after the talk: waits for the last lines, then plans the order (the page pays it). */

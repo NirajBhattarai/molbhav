@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { after } from "next/server";
 import { Suspense } from "react";
 import { ChevronRight } from "lucide-react";
 import { AutoOrderCard } from "@/components/app/auto-order-card";
@@ -22,17 +23,22 @@ async function BargainPageContent({ params }: { params: Promise<{ id: string }> 
   const user = await me();
   let bargain = await myBargain(user, id);
   if (!bargain) notFound();
-  // Finish a seed that stopped after the redirect. Each offer is claimed once, so this never
-  // repeats lines the background seed is already writing.
+  // Stalls whose haggle hasn't started (the page often loads before the background seed claims
+  // them) or was cut short. Seed them after the response, never during it: running the whole AI
+  // haggle here held the screen on a skeleton for many seconds. Their lines show up through
+  // LiveRefresh, and each offer is claimed once, so this never repeats the background seed's work.
   const pending = await pendingMatches(id);
   if (pending.length) {
-    await seedHaggle(id, pending, bargain.budget).catch(() => {});
-    await decideBargain(id, user.id).catch((err) => console.error("decideBargain", id, err));
-    bargain = (await myBargain(user, id)) ?? bargain;
+    const budget = bargain.budget;
+    after(async () => {
+      await seedHaggle(id, pending, budget).catch(() => {});
+      await decideBargain(id, user.id).catch((err) => console.error("decideBargain", id, err));
+      await autoOrderStep(user.id, id, true).catch((err) => console.error("auto-order", err));
+    });
   }
-  // Catch up auto-order if the background worker stopped mid-countdown.
-  await autoOrderStep(user.id, id).catch((err) => console.error("auto-order", err));
-  bargain = (await myBargain(user, id)) ?? bargain;
+  // Plan the agent's order if the talk has ended (a quick read and write).
+  if (await autoOrderStep(user.id, id).catch((err) => console.error("auto-order", err)))
+    bargain = (await myBargain(user, id)) ?? bargain;
 
   const best = bestPrice(bargain.offers);
   // Going offers by price (cheapest first), then the ones with no price yet, then those that said no.
