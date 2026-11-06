@@ -34,6 +34,7 @@ async function orderInEnglish(text: string): Promise<string | null> {
     return await geminiJSON({
       temperature: 0,
       timeoutMs: 8_000,
+      thinking: "low", // default thinking took 4–5 s a call; low reads orders as well in ~2.5 s
       system: `You translate a shopper's order at an Indian street market into short plain English for menu search.
 
 The shopper may speak or type in any of: ${SPEAK}. Keep their meaning exactly.
@@ -77,6 +78,7 @@ async function parseWantGemini(text: string): Promise<WantLine[]> {
     return await geminiJSON({
       temperature: 0,
       timeoutMs: 8_000,
+      thinking: "low",
       system: `You read one shopper order at an Indian street market and list each distinct food/goods line with quantity.
 
 The order may already be English, or still in ${SPEAK} — understand it either way; output English menu nouns.
@@ -143,6 +145,7 @@ async function limitIn(text: string): Promise<number | null> {
       },
       temperature: 0,
       timeoutMs: 6_000,
+      thinking: "low",
       validate: (value) => {
         const limit = (value as { limit?: unknown })?.limit;
         if (limit === null) return { limit: null };
