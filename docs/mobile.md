@@ -3,11 +3,11 @@
 The iPhone app is a [Capacitor](https://capacitorjs.com) shell around the deployed site, so pages, API
 routes and secrets stay on the server. A deploy reaches phones on their next launch.
 
-| What                         | Where                      |
-| ---------------------------- | -------------------------- |
-| The site the app loads       | `capacitor.config.ts`      |
-| The Xcode project            | `ios/`                     |
-| Page shown when it's offline | `capacitor/www/index.html` |
+| What                         | Where                          |
+| ---------------------------- | ------------------------------ |
+| The site the app loads       | `capacitor.config.ts`          |
+| The Xcode project            | `ios/`                         |
+| Page shown when it's offline | `capacitor/www/index.html`     |
 | App icon + splash            | `ios/App/App/Assets.xcassets/` |
 
 ## Running it
