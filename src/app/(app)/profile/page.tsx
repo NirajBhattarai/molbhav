@@ -2,7 +2,8 @@ import { Suspense } from "react";
 import { ProfileAccount } from "@/components/app/profile-account";
 import { ProfileSettings } from "@/components/app/profile-settings";
 import { Screen } from "@/components/app/screen";
-import { me } from "@/lib/server/shop";
+import { getDiscovery } from "@/lib/server/discovery";
+import { ensureUser, me } from "@/lib/server/shop";
 
 export default function ProfilePage() {
   return (
@@ -10,7 +11,9 @@ export default function ProfilePage() {
       <Suspense fallback={<AccountSkeleton />}>
         <Account />
       </Suspense>
-      <ProfileSettings />
+      <Suspense fallback={null}>
+        <Settings />
+      </Suspense>
     </Screen>
   );
 }
@@ -18,6 +21,13 @@ export default function ProfilePage() {
 async function Account() {
   const { email } = await me();
   return <ProfileAccount email={email} />;
+}
+
+async function Settings() {
+  const user = await me();
+  await ensureUser(user);
+  const discovery = await getDiscovery(user.id);
+  return <ProfileSettings initialDiscovery={discovery} />;
 }
 
 function AccountSkeleton() {

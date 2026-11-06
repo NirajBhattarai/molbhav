@@ -6,6 +6,7 @@ Migrations (apply with `npm run db:migrate`):
 
 - [`0001_users_stalls.sql`](../db/migrations/0001_users_stalls.sql) — `users`, `stalls`
 - [`0002_stall_items.sql`](../db/migrations/0002_stall_items.sql) — menu rows (`price` ask, `lowest` floor)
+- [`0003_user_discovery.sql`](../db/migrations/0003_user_discovery.sql) — `users.discovery`
 
 ## Purpose
 
@@ -68,13 +69,14 @@ One user owns at most one stall. A stall has many menu items.
 
 One row per signed-in person. Upsert on sign-in.
 
-| Column       | Type                                   | Notes                                      |
-| ------------ | -------------------------------------- | ------------------------------------------ |
-| `id`         | `text` PRIMARY KEY                     | Magic issuer (`did:ethr:0x…`)              |
-| `email`      | `text` NOT NULL                        | Display / contact; updated on each sign-in |
-| `created_at` | `timestamptz` NOT NULL DEFAULT `now()` | First seen                                 |
+| Column       | Type                                   | Notes                                                                 |
+| ------------ | -------------------------------------- | --------------------------------------------------------------------- |
+| `id`         | `text` PRIMARY KEY                     | Magic issuer (`did:ethr:0x…`)                                         |
+| `email`      | `text` NOT NULL                        | Display / contact; updated on each sign-in                            |
+| `discovery`  | `text` NOT NULL DEFAULT `'nearby'`     | Buyer find mode: `location` or `nearby` (Redis caches with short TTL) |
+| `created_at` | `timestamptz` NOT NULL DEFAULT `now()` | First seen                                                            |
 
-No Hedera, LP, or role columns in step 1. Buyers and shopkeepers share this table; owning a stall is what makes someone a shopkeeper.
+Buyers and shopkeepers share this table; owning a stall is what makes someone a shopkeeper. Discovery is read Redis → Postgres (on miss, fill Redis); writes go Postgres then Redis.
 
 ### `stalls`
 
