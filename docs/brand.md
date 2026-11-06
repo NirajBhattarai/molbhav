@@ -21,9 +21,10 @@ land in the middle.
 | -------------------------------------------------------- | ----------------------------------------------------------------------- |
 | `src/components/brand/logo.tsx`                          | `LogoMark` and `Logo` (mark + wordmark) for the app; uses theme colours |
 | `src/components/brand/block-print.tsx`                   | Marigold block-print pattern for hero atmosphere                        |
-| `src/app/icon.svg`                                       | Browser tab icon (Next.js App Router)                                   |
+| `src/app/icon.svg`, `src/app/apple-icon.png`             | Browser tab icon and iOS home-screen icon (Next.js)                     |
 | `public/brand/molbhav-icon.svg`                          | App-icon tile                                                           |
 | `public/brand/molbhav-mark.svg`, `molbhav-mark-dark.svg` | The bare mark for light and dark backgrounds                            |
+| `ios/App/App/Assets.xcassets/`                           | App icon (1024, opaque) and splash (2732)                               |
 
 ## Rules
 
@@ -37,7 +38,15 @@ land in the middle.
 Change the geometry in both `scripts/logo/generate.py` and `logo.tsx`, then:
 
 ```sh
-python3 scripts/logo/generate.py /tmp/molbhav-logo
-cp /tmp/molbhav-logo/web/icon.svg src/app/icon.svg
-cp /tmp/molbhav-logo/brand/*.svg public/brand/
+npm run ios:assets
 ```
+
+Or step by step:
+
+```sh
+python3 scripts/logo/generate.py /tmp/molbhav-logo
+node scripts/logo/raster.mjs /tmp/molbhav-logo
+```
+
+Then copy `web/` → `src/app/`, `brand/` → `public/brand/`, and `ios/` PNGs into the Xcode asset catalog
+(`AppIcon.appiconset` / `Splash.imageset`).
