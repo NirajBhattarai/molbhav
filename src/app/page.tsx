@@ -1,5 +1,6 @@
 import { Suspense } from "react";
-import { SignOutButton } from "@/components/app/sign-out-button";
+import { MarketAddressCard } from "@/components/app/market-address-card";
+import { ProfileLink } from "@/components/app/profile-link";
 import { SwitchToShopkeeper } from "@/components/app/switch-to-shopkeeper";
 import { Logo } from "@/components/brand/logo";
 
@@ -9,7 +10,7 @@ export default function Home() {
       <header className="flex items-center justify-between gap-3">
         <Logo />
         <Suspense fallback={null}>
-          <SignOutButton />
+          <ProfileLink />
         </Suspense>
       </header>
       <section className="rounded-2xl border border-border bg-card p-5">
@@ -22,6 +23,7 @@ export default function Home() {
           .
         </p>
       </section>
+      <MarketAddressCard />
     </main>
   );
 }

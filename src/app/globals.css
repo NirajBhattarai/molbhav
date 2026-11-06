@@ -244,7 +244,23 @@
   }
 }
 
+/* Menu scan: a highlight band sweeps down the photo and back. */
+@keyframes scan {
+  from {
+    transform: translateY(-100%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
+  @keyframes scan {
+    from,
+    to {
+      transform: translateY(-40%);
+    }
+  }
   @keyframes rise {
     from {
       opacity: 0;
