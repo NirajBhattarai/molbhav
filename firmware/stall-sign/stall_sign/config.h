@@ -48,13 +48,15 @@
 #define SETUP_AP_PASSWORD "molbhav123"  // at least 8 characters
 
 // ---------- Bluetooth beacon ----------
-// Naming convention (BEACON.md): local name "MolbhavA-<agent id>", e.g. "MolbhavA-agent_1a2b3c4d5e".
+// Naming convention (BEACON.md): local name = the stall's ENS label once the server sends one that
+// fits, e.g. "mohd-soyeb-khan" (phones add ".molbhav.eth"); until then "MolbhavA-<agent id>".
 // Manufacturer data: [company id 0x0BAB, low byte first][version][status][agent id, 16 ASCII bytes]
 // Don't change these per shop: phones look for exactly this prefix and company id.
 
 #define BEACON_COMPANY_ID 0x0BAB
 #define BEACON_VERSION 1
 #define BEACON_NAME_PREFIX "MolbhavA-"
+#define BEACON_LABEL_MAX 29  // a scan response holds 31 bytes; the name's header takes 2
 
 // ---------- Pins ----------
 // Parts: 1.3" SH1106 OLED (I2C), traffic-light module (R / Y / G, resistors built in),

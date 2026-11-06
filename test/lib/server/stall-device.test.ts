@@ -10,6 +10,7 @@ import { query } from "@/lib/server/db";
 import {
   applyDeviceStatus,
   authorizeDevice,
+  deviceStateBody,
   stallDeviceToken,
   stallReady,
 } from "@/lib/server/stall-device";
@@ -83,6 +84,16 @@ describe("stall device auth", () => {
     expect(state?.status).toBe("paused");
     expect(vi.mocked(query).mock.calls[1][1]?.[1]).toBe("paused");
     expect(vi.mocked(query).mock.calls[1][1]?.[3]).toBe(false);
+  });
+});
+
+describe("deviceStateBody", () => {
+  it("gives the sign its ENS label once the name is live and fits", () => {
+    const live = { ...readyStall, ens_label: "mohd-soyeb-khan", ens_status: "live" };
+    expect(deviceStateBody(live).ensLabel).toBe("mohd-soyeb-khan");
+    expect(deviceStateBody({ ...live, ens_status: "registered" }).ensLabel).toBe("");
+    expect(deviceStateBody({ ...live, ens_label: "a".repeat(30) }).ensLabel).toBe("");
+    expect(deviceStateBody(readyStall).ensLabel).toBe("");
   });
 });
 

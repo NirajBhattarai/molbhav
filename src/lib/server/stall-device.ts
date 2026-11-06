@@ -1,5 +1,6 @@
 import "server-only";
 import { createHmac, timingSafeEqual } from "node:crypto";
+import { beaconLabel } from "@/lib/ble/beacon";
 import { forgetAgents } from "@/lib/server/a2a/stall";
 import { query } from "@/lib/server/db";
 
@@ -50,6 +51,8 @@ type StallRow = {
   device_status: DeviceStatus;
   pause_until: Date | null;
   is_open: boolean;
+  ens_label: string | null;
+  ens_status: string | null;
 };
 
 /** Name + UPI + pin + at least one menu item — same gate as the shop "Open" toggle. */
@@ -72,7 +75,7 @@ export function stallReady(stall: {
 
 async function stallByAgent(agentId: string): Promise<StallRow | null> {
   const [row] = await query<StallRow>(
-    `SELECT id, name, upi_id, lat, lng, device_status, pause_until, is_open,
+    `SELECT id, name, upi_id, lat, lng, device_status, pause_until, is_open, ens_label, ens_status,
        EXISTS (
          SELECT 1 FROM stall_items i WHERE i.stall_id = stalls.id AND i.active
        ) AS has_menu
@@ -89,7 +92,8 @@ function pauseSecondsLeft(until: Date | null): number {
 
 /** Body the sign expects from GET state / POST status replies. */
 export function deviceStateBody(
-  stall: Pick<StallRow, "name" | "upi_id" | "device_status" | "pause_until">,
+  stall: Pick<StallRow, "name" | "upi_id" | "device_status" | "pause_until"> &
+    Partial<Pick<StallRow, "ens_label" | "ens_status">>,
 ) {
   let status: DeviceStatus = stall.device_status;
   const pauseLeft = pauseSecondsLeft(stall.pause_until);
@@ -100,6 +104,8 @@ export function deviceStateBody(
     pauseSecondsLeft: status === "paused" ? pauseLeft : 0,
     stallName: stall.name,
     upiId: stall.upi_id ?? "",
+    // The sign's Bluetooth name: its ENS label once the name is live and fits, else "" (BEACON.md).
+    ensLabel: (stall.ens_status === "live" && beaconLabel(stall.ens_label)) || "",
     deal: null as null,
   };
 }
@@ -131,7 +137,7 @@ export async function applyDeviceStatus(
          is_open = $4,
          updated_at = now()
      WHERE agent_id = $1
-     RETURNING id, name, upi_id, lat, lng, device_status, pause_until, is_open,
+     RETURNING id, name, upi_id, lat, lng, device_status, pause_until, is_open, ens_label, ens_status,
        EXISTS (
          SELECT 1 FROM stall_items i WHERE i.stall_id = stalls.id AND i.active
        ) AS has_menu`,
