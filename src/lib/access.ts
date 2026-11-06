@@ -10,7 +10,7 @@ export function parseRole(value: string | undefined): Role | null {
 }
 
 const areas: Record<Role, string[]> = {
-  buyer: ["/"],
+  buyer: ["/", "/bargains"],
   shopkeeper: ["/shop"],
 };
 

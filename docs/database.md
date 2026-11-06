@@ -1,12 +1,16 @@
-# Database — shopkeeper foundation
+# Database — shop, menu, and bargains
 
-Postgres holds people, their stall shell, and the menu. Bargains and payments come later.
+Postgres holds people, their stall shell, the menu, and buyer bargains (offers + chat turns).
 
 Migrations (apply with `npm run db:migrate`):
 
 - [`0001_users_stalls.sql`](../db/migrations/0001_users_stalls.sql) — `users`, `stalls`
 - [`0002_stall_items.sql`](../db/migrations/0002_stall_items.sql) — menu rows (`price` ask, `lowest` floor)
 - [`0003_user_discovery.sql`](../db/migrations/0003_user_discovery.sql) — `users.discovery`
+- [`0004_stall_device_status.sql`](../db/migrations/0004_stall_device_status.sql) — stall sign open/paused/closed
+- [`0005_sign_claims.sql`](../db/migrations/0005_sign_claims.sql) / [`0006_sign_claim_secret.sql`](../db/migrations/0006_sign_claim_secret.sql) — ESP32 claim
+- [`0007_bargains.sql`](../db/migrations/0007_bargains.sql) — `bargains`, `offers`, `turns`
+- [`0008_one_deal_per_bargain.sql`](../db/migrations/0008_one_deal_per_bargain.sql) — at most one agreed/paid offer per bargain
 
 ## Purpose
 
@@ -30,6 +34,11 @@ A shopkeeper signs in, starts a stall a piece at a time (details → pin → ope
 erDiagram
   users ||--o| stalls : owns
   stalls ||--o{ stall_items : sells
+  users ||--o{ bargains : starts
+  bargains ||--o{ offers : asks
+  stalls ||--o{ offers : answers
+  stall_items ||--o{ offers : item
+  offers ||--o{ turns : chat
   users {
     text id PK
     text email
@@ -59,9 +68,41 @@ erDiagram
     int lowest
     boolean active
   }
+  bargains {
+    uuid id PK
+    text buyer_id FK
+    text want
+    text title
+    int budget
+    text buyer_lang
+    timestamptz created_at
+  }
+  offers {
+    uuid bargain_id PK_FK
+    text stall_id PK_FK
+    int item_id FK
+    text status
+    int asked
+    int current
+    int agent_offer
+    int version
+    timestamptz updated_at
+  }
+  turns {
+    bigint id PK
+    uuid bargain_id FK
+    text stall_id FK
+    text speaker
+    text msg
+    jsonb vars
+    text text
+    text status
+    int current
+    timestamptz at
+  }
 ```
 
-One user owns at most one stall. A stall has many menu items.
+One user owns at most one stall. A stall has many menu items. A buyer bargain asks several stalls; each offer has a chat of turns.
 
 ## Tables
 
@@ -173,6 +214,18 @@ sequenceDiagram
 | `active`   | `boolean`     | Soft-delete; past bargains can still point at the row |
 
 Menu scan: shopkeeper uploads a photo → Gemini lists items + ask prices → rows inserted with `lowest ≈ 80% of price` for editing.
+
+## Bargains
+
+A buyer says what they want → one `bargains` row → one `offers` row per matching open stall → `turns` are the chat lines for that pair.
+
+| Table      | Role                                                                                                  |
+| ---------- | ----------------------------------------------------------------------------------------------------- |
+| `bargains` | Buyer want, display title, optional budget, language                                                  |
+| `offers`   | Per-stall status: `haggling` → `agreed` \| `declined` → `paid`; `asked` first price, `current` latest |
+| `turns`    | Chat: `speaker` in `agent` \| `stall` \| `buyer`; `msg`+`vars` for catalog phrases, or free `text`    |
+
+Offer primary key is `(bargain_id, stall_id)`. Turns cascade-delete with the offer. A partial unique index keeps one agreed or paid offer per bargain.
 
 ## Applying the migration
 

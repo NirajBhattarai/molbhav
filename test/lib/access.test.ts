@@ -13,10 +13,13 @@ describe("parseRole", () => {
 describe("canVisit", () => {
   it("keeps each role to its own screens, plus Profile", () => {
     expect(canVisit("buyer", "/")).toBe(true);
+    expect(canVisit("buyer", "/bargains")).toBe(true);
+    expect(canVisit("buyer", "/bargains/abc")).toBe(true);
     expect(canVisit("buyer", "/shop")).toBe(false);
     expect(canVisit("shopkeeper", "/shop")).toBe(true);
     expect(canVisit("shopkeeper", "/shop/items")).toBe(true);
     expect(canVisit("shopkeeper", "/")).toBe(false);
+    expect(canVisit("shopkeeper", "/bargains")).toBe(false);
     expect(canVisit("buyer", "/profile")).toBe(true);
     expect(canVisit("shopkeeper", "/profile")).toBe(true);
   });
